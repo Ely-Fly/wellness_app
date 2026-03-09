@@ -180,6 +180,12 @@ app.post('/api/logs', checkSupabase, requireAuth, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// For local development, listen on a port.
+// In Vercel, the function is executed directly, so we export the app instead.
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+export default app;

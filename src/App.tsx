@@ -49,6 +49,19 @@ import { ViewType, Mood, JournalEntry, UserProfile, DailyLog, Habit, UserAccount
 
 // --- Mock Data ---
 // --- Constants ---
+// Utility to safely parse JSON and catch Vercel HTML errors
+const safeJsonParse = async (res: Response) => {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    if (text.includes('<html')) {
+      throw new Error('Server returned an HTML page. The Vercel backend API may not be deployed correctly.');
+    }
+    throw new Error('Failed to parse server response.');
+  }
+};
+
 const formatDateKey = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -190,8 +203,8 @@ const SignUpView = ({ onBack, onSignUp }: { onBack: () => void, onSignUp: (user:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to register');
+      const data = await safeJsonParse(res);
+      if (!res.ok) throw new Error(data?.error || 'Failed to register');
       onSignUp(data.user);
     } catch (err: any) {
       setError(err.message);
@@ -267,8 +280,8 @@ const LogInView = ({ onBack, onLogin }: { onBack: () => void, onLogin: (user: Us
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to login');
+      const data = await safeJsonParse(res);
+      if (!res.ok) throw new Error(data?.error || 'Failed to login');
       onLogin(data.user, remember);
     } catch (err: any) {
       setError(err.message || 'Invalid username or password.');
@@ -2323,16 +2336,16 @@ export default function App() {
       
       let fetchedProfile = null;
       if (profileRes.ok) {
-        const { profile } = await profileRes.json();
-        if (profile && profile.name) fetchedProfile = profile;
+        const data = await safeJsonParse(profileRes);
+        if (data?.profile?.name) fetchedProfile = data.profile;
         setProfile(fetchedProfile);
       }
       
       if (logsRes.ok) {
-        const { logs } = await logsRes.json();
-        if (logs && Array.isArray(logs)) {
+        const data = await safeJsonParse(logsRes);
+        if (data?.logs && Array.isArray(data.logs)) {
           const logsMap: Record<string, DailyLog> = {};
-          logs.forEach((log: any) => logsMap[log.date] = log);
+          data.logs.forEach((log: any) => logsMap[log.date] = log);
           setDailyLogs(logsMap);
         }
       }
