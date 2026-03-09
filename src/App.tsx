@@ -556,13 +556,22 @@ const ReflectionCard = ({ content, label }: { content: string, label: string, ke
   );
 };
 
-const JournalView = ({ profile, dailyLogs, onUpdateLog, isDarkMode, setIsDarkMode, isLoaded }: { 
+const JournalView = ({ 
+  profile, 
+  dailyLogs, 
+  onUpdateLog, 
+  isDarkMode, 
+  setIsDarkMode, 
+  isLoaded,
+  currentUser
+}: { 
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>,
   onUpdateLog: (date: string, log: Partial<DailyLog>) => void,
   isDarkMode: boolean,
   setIsDarkMode: (v: boolean) => void,
-  isLoaded: boolean
+  isLoaded: boolean,
+  currentUser: UserAccount | null
 }) => {
   const today = formatDateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
@@ -603,7 +612,7 @@ const JournalView = ({ profile, dailyLogs, onUpdateLog, isDarkMode, setIsDarkMod
   const refreshPotentialHabits = () => {
     const shuffled = [...HABIT_POOL].sort(() => 0.5 - Math.random());
     setPotentialHabits(shuffled.slice(0, 5));
-    setSelectedHabitNames([]);
+    // Do not clear selectedHabitNames so that users don't lose their selection
   };
 
   const toggleHabitSelection = (name: string) => {
@@ -799,7 +808,7 @@ const JournalView = ({ profile, dailyLogs, onUpdateLog, isDarkMode, setIsDarkMod
             {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
           <h1 className={`text-4xl tracking-tight ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>
-            {profile ? `Hello, ${profile.name}` : 'Soluna Morning'}
+            {profile?.name ? `Hello, ${profile.name}` : (currentUser?.username ? `Hello, ${currentUser.username}` : 'Soluna Morning')}
           </h1>
         </div>
         <div className="flex gap-2">
@@ -1637,15 +1646,58 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
     return '';
   };
 
+  const calculateStreak = (name: string) => {
+    let streak = 0;
+    const today = formatDateKey(new Date());
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = formatDateKey(yesterdayDate);
+
+    // Find the starting point (today or yesterday)
+    let startIndex = logsArray.findIndex(l => l.date === today);
+    if (startIndex === -1) {
+      startIndex = logsArray.findIndex(l => l.date === yesterday);
+    }
+    
+    if (startIndex === -1) return 0;
+
+    // Check if the most recent log actually has the habit completed
+    const startLog = logsArray[startIndex];
+    const startHabit = startLog.habits.find(h => h.name === name);
+    if (!startLog || !startHabit || !startHabit.completed) return 0;
+
+    // Look backwards for consecutive completions
+    let expectedDate = new Date(startLog.date);
+    for (let i = startIndex; i < logsArray.length; i++) {
+      const log = logsArray[i];
+      if (log.date === formatDateKey(expectedDate)) {
+        const h = log.habits.find(hab => hab.name === name);
+        if (h && h.completed) {
+          streak++;
+          expectedDate.setDate(expectedDate.getDate() - 1);
+        } else {
+          break;
+        }
+      } else {
+        break; // Gap in logs
+      }
+    }
+    return streak;
+  };
+
   // 3. Habit Progress Data
   const getHabitProgress = () => {
-    const habitStats: Record<string, { completed: number }> = {};
+    const habitStats: Record<string, { completed: number, streak: number }> = {};
     
     periodLogs.forEach(log => {
       log.habits.forEach(h => {
-        if (!habitStats[h.name]) habitStats[h.name] = { completed: 0 };
+        if (!habitStats[h.name]) habitStats[h.name] = { completed: 0, streak: 0 };
         if (h.completed) habitStats[h.name].completed++;
       });
+    });
+
+    Object.keys(habitStats).forEach(name => {
+      habitStats[name].streak = calculateStreak(name);
     });
 
     const totalDays = periodLogs.length || 1;
@@ -1653,7 +1705,8 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
     return Object.entries(habitStats)
       .map(([name, stats]) => ({ 
         name, 
-        percent: Math.round((stats.completed / totalDays) * 100) 
+        percent: Math.round((stats.completed / totalDays) * 100),
+        streak: stats.streak
       }))
       .sort((a, b) => b.percent - a.percent);
   };
@@ -2011,7 +2064,14 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
             {habitProgress.length > 0 ? habitProgress.map((habit) => (
               <div key={habit.name}>
                 <div className="flex justify-between items-center mb-4">
-                  <span className={`text-base font-bold ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>{habit.name}</span>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-base font-bold ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>{habit.name}</span>
+                    {habit.streak > 0 && (
+                      <span className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-[#E88D5D]/20 to-[#E88D5D]/10 text-[#E88D5D] text-[10px] font-bold rounded-full border border-[#E88D5D]/20">
+                        🔥 {habit.streak} day streak
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>{habit.percent}%</span>
                 </div>
                 <div className={`h-3 w-full rounded-full overflow-hidden ${isDarkMode ? 'bg-neutral-900' : 'bg-[#F5F5F0]'}`}>
@@ -2367,10 +2427,11 @@ export default function App() {
     if (savedAuth) {
       const user = JSON.parse(savedAuth);
       setCurrentUser(user);
+      // Optimistically show journal if we have a saved session
+      setView('journal');
       fetchProfileAndLogs(user).then(profile => {
-        if (profile) {
-          setView('journal');
-        } else {
+        if (!profile) {
+          // If no profile found, maybe they didn't finish onboarding
           setView('onboarding');
         }
         setIsLoaded(true);
@@ -2497,6 +2558,7 @@ export default function App() {
               isDarkMode={isDarkMode}
               setIsDarkMode={setIsDarkMode}
               isLoaded={isLoaded}
+              currentUser={currentUser}
             />
           )}
           {view === 'insights' && <InsightsView dailyLogs={dailyLogs} isDarkMode={isDarkMode} />}
