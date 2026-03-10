@@ -364,9 +364,12 @@ const DashboardPlaceholderView = ({ onContinue }: { onContinue: () => void }) =>
   </div>
 );
 
-const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfile) => void }) => {
-  const [step, setStep] = useState(2); // Start from name step
-  const [profile, setProfile] = useState<UserProfile>({ name: '', goal: '' });
+const OnboardingView = ({ onComplete, initialProfile }: { onComplete: (profile: UserProfile) => void, initialProfile: UserProfile | null }) => {
+  const [step, setStep] = useState(initialProfile?.name ? 3 : 2); // Start from name step, or skip if name is known
+  const [profile, setProfile] = useState<UserProfile>({ 
+    name: initialProfile?.name || '', 
+    goal: initialProfile?.goal || '' 
+  });
 
   const nextStep = () => setStep(s => s + 1);
 
@@ -587,7 +590,14 @@ const JournalView = ({
   const [isSaved, setIsSaved] = useState(false);
   const [reflectionInput, setReflectionInput] = useState('');
   const [potentialHabits, setPotentialHabits] = useState<string[]>([]);
-  const [selectedHabitNames, setSelectedHabitNames] = useState<string[]>([]);
+  const [selectedHabitNames, setSelectedHabitNames] = useState<string[]>(() => {
+    const saved = localStorage.getItem('soluna_selected_habits');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('soluna_selected_habits', JSON.stringify(selectedHabitNames));
+  }, [selectedHabitNames]);
 
   // Migration and initialization
   useEffect(() => {
@@ -611,8 +621,14 @@ const JournalView = ({
 
   const refreshPotentialHabits = () => {
     const shuffled = [...HABIT_POOL].sort(() => 0.5 - Math.random());
-    setPotentialHabits(shuffled.slice(0, 5));
-    // Do not clear selectedHabitNames so that users don't lose their selection
+    const newPotentials = [...selectedHabitNames];
+    for (const h of shuffled) {
+      if (newPotentials.length >= 5) break;
+      if (!newPotentials.includes(h)) {
+        newPotentials.push(h);
+      }
+    }
+    setPotentialHabits(newPotentials);
   };
 
   const toggleHabitSelection = (name: string) => {
@@ -1485,7 +1501,6 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
   const [timePeriod, setTimePeriod] = useState<'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly'>('Weekly');
   const [periodOffset, setPeriodOffset] = useState(0);
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
-  const [showHabitMenu, setShowHabitMenu] = useState(false);
   const [selectedInfluenceDetail, setSelectedInfluenceDetail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'Mood' | 'Habits' | 'Influences'>('Mood');
 
@@ -1584,10 +1599,14 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
       let logsInPoint: DailyLog[] = [];
 
       if (timePeriod === 'Weekly') {
-        date.setDate(date.getDate() - (6 - i));
+        const offsetDay = (6 - i) - 1; // shift backwards to make index 0 = Monday
+        date.setDate(date.getDate() - offsetDay);
+        // if today is Sunday (day 0), this logic shifts correctly via offset
         const dateStr = formatDateKey(date);
         logsInPoint = periodLogs.filter(l => l.date === dateStr);
-        label = date.toLocaleDateString('en-US', { weekday: 'short' });
+        // Force array ordering: M, T, W, T, F, S, S
+        const daysOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        label = daysOrder[i];
       } else if (timePeriod === 'Monthly') {
         // Each point is a week (7 days)
         const startDay = i * 7 + 1;
@@ -1648,38 +1667,47 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
 
   const calculateStreak = (name: string) => {
     let streak = 0;
-    const today = formatDateKey(new Date());
-    const yesterdayDate = new Date();
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterday = formatDateKey(yesterdayDate);
+    const today = new Date();
+    const todayStr = formatDateKey(today);
 
-    // Find the starting point (today or yesterday)
-    let startIndex = logsArray.findIndex(l => l.date === today);
-    if (startIndex === -1) {
-      startIndex = logsArray.findIndex(l => l.date === yesterday);
-    }
-    
-    if (startIndex === -1) return 0;
+    // Filter logs for this habit and sort descending
+    const habitLogs = logsArray
+      .filter(l => l.habits.find(h => h.name === name))
+      .sort((a, b) => b.date.localeCompare(a.date));
 
-    // Check if the most recent log actually has the habit completed
-    const startLog = logsArray[startIndex];
-    const startHabit = startLog.habits.find(h => h.name === name);
-    if (!startLog || !startHabit || !startHabit.completed) return 0;
+    if (habitLogs.length === 0) return 0;
 
-    // Look backwards for consecutive completions
-    let expectedDate = new Date(startLog.date);
-    for (let i = startIndex; i < logsArray.length; i++) {
-      const log = logsArray[i];
-      if (log.date === formatDateKey(expectedDate)) {
+    let expectedDate = new Date(); // Start looking back from today
+    for (let i = 0; i < habitLogs.length; i++) {
+      const log = habitLogs[i];
+      const expectedStr = formatDateKey(expectedDate);
+
+      if (log.date === expectedStr) {
+        // Log is for the expected day
         const h = log.habits.find(hab => hab.name === name);
         if (h && h.completed) {
           streak++;
+          // Expect next log to be from the day before
+          expectedDate.setDate(expectedDate.getDate() - 1);
+        } else if (log.date === todayStr && streak === 0) {
+          // If it's today and not completed, maybe yesterday was part of a streak
           expectedDate.setDate(expectedDate.getDate() - 1);
         } else {
+          // Found a missing link or incomplete habit
           break;
         }
-      } else {
-        break; // Gap in logs
+      } else if (log.date > expectedStr) {
+        // Skip logs that are somehow in the future or out of band
+        continue;
+      } else if (log.date < expectedStr) {
+        // We missed a day
+        if (expectedStr === todayStr && streak === 0) {
+           // Allow skipping today if streak started yesterday
+           expectedDate.setDate(expectedDate.getDate() - 1);
+           i--; // Re-process this log for yesterday
+        } else {
+           break; 
+        }
       }
     }
     return streak;
@@ -2035,29 +2063,6 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
         <section className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-[#E5E5E0]'} p-6 md:p-10 rounded-[2.5rem] border shadow-sm md:col-span-12`}>
           <div className="flex justify-between items-center mb-10 relative">
             <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Habit Progress</h3>
-            <button 
-              onClick={() => setShowHabitMenu(!showHabitMenu)}
-              className={`flex gap-1 p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-neutral-700' : 'hover:bg-[#F5F5F0]'}`}
-            >
-              <div className={`size-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-[#1A1A1A]'}`}></div>
-              <div className={`size-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-[#1A1A1A]'}`}></div>
-              <div className={`size-1.5 rounded-full ${isDarkMode ? 'bg-white' : 'bg-[#1A1A1A]'}`}></div>
-            </button>
-
-            <AnimatePresence>
-              {showHabitMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-[#E5E5E0]'} absolute right-0 top-12 w-48 rounded-2xl border shadow-xl z-50 overflow-hidden`}
-                >
-                  <button className={`w-full text-left px-5 py-4 text-xs font-bold transition-colors ${isDarkMode ? 'text-white hover:bg-neutral-700' : 'text-[#1A1A1A] hover:bg-[#F9F9F7]'}`}>Manage Habits</button>
-                  <button className={`w-full text-left px-5 py-4 text-xs font-bold transition-colors ${isDarkMode ? 'text-white hover:bg-neutral-700' : 'text-[#1A1A1A] hover:bg-[#F9F9F7]'}`}>Reset Progress</button>
-                  <button className={`w-full text-left px-5 py-4 text-xs font-bold text-[#E88D5D] transition-colors ${isDarkMode ? 'hover:bg-neutral-700' : 'hover:bg-[#F9F9F7]'}`}>Clear Data</button>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -2420,6 +2425,7 @@ export default function App() {
     const savedDarkMode = localStorage.getItem('harmony_dark_mode');
     const savedReminders = localStorage.getItem('harmony_reminders');
     const savedAuth = localStorage.getItem('soluna_auth');
+    const savedProfile = localStorage.getItem('soluna_profile');
     
     if (savedDarkMode) setIsDarkMode(JSON.parse(savedDarkMode));
     if (savedReminders) setRemindersEnabled(JSON.parse(savedReminders));
@@ -2427,12 +2433,17 @@ export default function App() {
     if (savedAuth) {
       const user = JSON.parse(savedAuth);
       setCurrentUser(user);
+      if (savedProfile) {
+        setProfile(JSON.parse(savedProfile));
+      }
       // Optimistically show journal if we have a saved session
       setView('journal');
-      fetchProfileAndLogs(user).then(profile => {
-        if (!profile) {
+      fetchProfileAndLogs(user).then(fetchedProfile => {
+        if (!fetchedProfile && !savedProfile) {
           // If no profile found, maybe they didn't finish onboarding
           setView('onboarding');
+        } else if (fetchedProfile) {
+          localStorage.setItem('soluna_profile', JSON.stringify(fetchedProfile));
         }
         setIsLoaded(true);
       });
@@ -2456,10 +2467,12 @@ export default function App() {
       localStorage.setItem('soluna_auth', JSON.stringify(user));
     } else {
       localStorage.removeItem('soluna_auth');
+      localStorage.removeItem('soluna_profile');
     }
     
     const fetchedProfile = await fetchProfileAndLogs(user);
     if (fetchedProfile && fetchedProfile.name) {
+      localStorage.setItem('soluna_profile', JSON.stringify(fetchedProfile));
       setView('journal');
     } else {
       setView('onboarding');
@@ -2476,6 +2489,7 @@ export default function App() {
   const handleOnboardingComplete = async (newProfile: UserProfile) => {
     const profileWithUser = { ...newProfile, username: currentUser?.username };
     setProfile(profileWithUser);
+    localStorage.setItem('soluna_profile', JSON.stringify(profileWithUser));
     
     if (currentUser?.id) {
       // Now that onboarding is complete and they have a profile, we persist the session
@@ -2496,6 +2510,7 @@ export default function App() {
 
   const handleProfileUpdate = async (updatedProfile: UserProfile) => {
     setProfile(updatedProfile);
+    localStorage.setItem('soluna_profile', JSON.stringify(updatedProfile));
     if (currentUser?.id) {
       const { username, ...profileData } = updatedProfile;
       fetch('/api/profile', {
@@ -2552,7 +2567,7 @@ export default function App() {
           {view === 'login' && <LogInView onBack={() => setView('welcome')} onLogin={handleLogin} />}
           {view === 'dashboard_placeholder' && <DashboardPlaceholderView onContinue={() => setView('journal')} />}
           
-          {view === 'onboarding' && <OnboardingView onComplete={handleOnboardingComplete} />}
+          {view === 'onboarding' && <OnboardingView onComplete={handleOnboardingComplete} initialProfile={profile} />}
           {view === 'journal' && (
             <JournalView 
               profile={profile} 
