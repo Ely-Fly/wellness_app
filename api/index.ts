@@ -101,13 +101,14 @@ app.get('/api/profile', checkSupabase, requireAuth, async (req, res) => {
   try {
     // @ts-ignore
     const userId = req.userId;
-    const { data, error } = await supabase!.from('profiles').select('*').eq('user_id', userId).single();
+    const { data, error } = await supabase!.from('profiles').select('*').eq('user_id', userId);
     
-    if (error && error.code !== 'PGRST116') { // PGRST116 is not found, we can return empty profile
+    if (error) {
       throw error;
     }
     
-    res.json({ profile: data || null });
+    // If no data is found (empty array), return null instead of crashing
+    res.json({ profile: data && data.length > 0 ? data[0] : null });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -119,10 +120,10 @@ app.put('/api/profile', checkSupabase, requireAuth, async (req, res) => {
     const userId = req.userId;
     const profileData = req.body;
     
-    const { data: existingProfile } = await supabase!.from('profiles').select('user_id').eq('user_id', userId).single();
+    const { data: existingProfiles } = await supabase!.from('profiles').select('user_id').eq('user_id', userId);
 
     let result;
-    if (existingProfile) {
+    if (existingProfiles && existingProfiles.length > 0) {
       result = await supabase!.from('profiles').update(profileData).eq('user_id', userId).select().single();
     } else {
       result = await supabase!.from('profiles').insert([{ ...profileData, user_id: userId }]).select().single();

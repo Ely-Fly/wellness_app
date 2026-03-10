@@ -2466,10 +2466,10 @@ export default function App() {
     }
   };
 
-  const handleSignUp = (user: UserAccount) => {
+  const handleSignUp = async (user: UserAccount) => {
     setCurrentUser(user);
-    // Persist login state automatically on sign up
-    localStorage.setItem('soluna_auth', JSON.stringify(user));
+    // Explicitly do not set soluna_auth yet, until they finish onboarding.
+    // That way if they refresh mid-onboarding, they start over or go to login.
     setView('onboarding');
   };
 
@@ -2478,6 +2478,9 @@ export default function App() {
     setProfile(profileWithUser);
     
     if (currentUser?.id) {
+      // Now that onboarding is complete and they have a profile, we persist the session
+      localStorage.setItem('soluna_auth', JSON.stringify(currentUser));
+      
       const { username, ...profileData } = profileWithUser;
       fetch('/api/profile', {
         method: 'PUT',
