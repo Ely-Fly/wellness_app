@@ -1722,11 +1722,12 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
 
   // 3. Habit Progress Data
   const getHabitProgress = () => {
-    const habitStats: Record<string, { completed: number, streak: number }> = {};
+    const habitStats: Record<string, { completed: number, selected: number, streak: number }> = {};
     
     periodLogs.forEach(log => {
       log.habits.forEach(h => {
-        if (!habitStats[h.name]) habitStats[h.name] = { completed: 0, streak: 0 };
+        if (!habitStats[h.name]) habitStats[h.name] = { completed: 0, selected: 0, streak: 0 };
+        habitStats[h.name].selected++;
         if (h.completed) habitStats[h.name].completed++;
       });
     });
@@ -1735,12 +1736,10 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
       habitStats[name].streak = calculateStreak(name);
     });
 
-    const totalDays = periodLogs.length || 1;
-
     return Object.entries(habitStats)
       .map(([name, stats]) => ({ 
         name, 
-        percent: Math.round((stats.completed / totalDays) * 100),
+        percent: stats.selected > 0 ? Math.round((stats.completed / stats.selected) * 100) : 0,
         streak: stats.streak
       }))
       .sort((a, b) => b.percent - a.percent);
@@ -2480,10 +2479,12 @@ export default function App() {
     const fetchedProfile = await fetchProfileAndLogs(user);
     if (fetchedProfile && fetchedProfile.name) {
       localStorage.setItem('soluna_profile', JSON.stringify(fetchedProfile));
-      setView('journal');
     } else {
-      setView('onboarding');
+      // Emergency fallback so the UI greeting doesn't crash if they login and don't load a matching profile
+      localStorage.setItem('soluna_profile', JSON.stringify({ name: user.username }));
     }
+    // Unconditionally bypass the onboarding to return directly to their dashboard.
+    setView('journal');
   };
 
   const handleSignUp = async (user: UserAccount) => {
