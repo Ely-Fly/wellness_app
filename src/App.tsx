@@ -694,7 +694,13 @@ const JournalView = ({
       currentReflections.unshift(currentLog.reflection);
     }
     
-    const updatedReflections = [...currentReflections, reflectionInput.trim()];
+    const energyIcons = ['🌿', '✨', '☁️', '☕', '🌙'];
+    let finalReflection = reflectionInput.trim();
+    if (currentLog.energy !== undefined && currentLog.energy >= 0 && currentLog.energy < energyIcons.length) {
+        finalReflection += ` ${energyIcons[currentLog.energy]}`;
+    }
+
+    const updatedReflections = [...currentReflections, finalReflection];
     onUpdateLog(selectedDate, { 
       reflections: updatedReflections,
       reflection: '' // Clear old field
@@ -805,7 +811,8 @@ const JournalView = ({
   // Find a past memory to surface
   const getPastMemory = () => {
     const pastLogs = Object.values(dailyLogs).filter(log => 
-      log.date < selectedDate && (log.reflection || log.mood)
+      log.date < selectedDate && 
+      (log.mood || (log.reflection && log.reflection !== 'Skipped for today.') || (log.reflections && log.reflections.length > 0))
     );
     if (pastLogs.length === 0) return null;
     // Pick a random one or "on this day" if possible
@@ -1305,7 +1312,7 @@ const JournalView = ({
             onClick={handleSave}
             disabled={!reflectionInput.trim() || isSaved}
             className={`w-full py-5 rounded-2xl text-white font-sans text-sm tracking-widest uppercase shadow-lg transition-all ${
-              isSaved ? 'bg-green-500 shadow-green-100' : 'bg-[#7C3AED] hover:bg-[#6D28D9] shadow-purple-100'
+              isSaved ? 'bg-[#88A47C] shadow-[#88A47C]/20' : 'bg-primary hover:bg-primary/90 shadow-primary/20'
             } disabled:opacity-50`}
           >
             <AnimatePresence mode="wait">
@@ -1346,7 +1353,7 @@ const JournalView = ({
               {new Date(pastMemory.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
             <p className="text-xl italic font-serif leading-relaxed mb-6">
-              "{pastMemory.reflection || `You felt ${pastMemory.mood} on this day.`}"
+              "{pastMemory.reflections?.[0] || pastMemory.reflection || `You felt ${pastMemory.mood} on this day.`}"
             </p>
             <div className="flex items-center gap-2">
               <Heart size={14} className="text-primary" />
@@ -2111,24 +2118,11 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
         {(correlations.length > 0 || energyPattern) && (
           <section className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-[#1A1A1A]'} p-8 rounded-[2.5rem] text-white overflow-hidden relative md:col-span-12`}>
             <div className="absolute -right-20 -top-20 size-64 bg-[#88A47C]/10 rounded-full blur-3xl"></div>
-            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-8 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Habit Patterns & Insights</h3>
-            <div className="space-y-10">
-              {correlations.map((c, i) => (
-                <div key={i} className="relative z-10 border-l-2 border-primary/30 pl-6">
-                  <p className="text-primary font-bold text-[10px] uppercase tracking-widest mb-3">Correlation</p>
-                  <p className={`text-xl font-serif italic leading-relaxed ${isDarkMode ? 'text-neutral-200' : 'text-white'}`}>
-                    "{c.text}"
-                  </p>
-                </div>
-              ))}
-              {energyPattern && (
-                <div className="relative z-10 border-l-2 border-primary/30 pl-6">
-                  <p className="text-primary font-bold text-[10px] uppercase tracking-widest mb-3">Energy</p>
-                  <p className={`text-xl font-serif italic leading-relaxed ${isDarkMode ? 'text-neutral-200' : 'text-white'}`}>
-                    "{energyPattern}"
-                  </p>
-                </div>
-              )}
+            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Habit Patterns & Insights</h3>
+            <div className="relative z-10">
+              <p className={`text-lg font-serif italic leading-relaxed ${isDarkMode ? 'text-neutral-200' : 'text-white'}`}>
+                {correlations[0]?.text || energyPattern || summary}
+              </p>
             </div>
           </section>
         )}
