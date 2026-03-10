@@ -381,7 +381,13 @@ const OnboardingView = ({ onComplete, initialProfile }: { onComplete: (profile: 
 
   const handleMoodSelect = (mood: string) => {
     setProfile({ ...profile, initialMood: mood });
-    setStep(5); // Skip habit step (step 4) and go to tutorial
+    if (initialProfile?.name) {
+      // If they are a returning user, finish onboarding instantly
+      onComplete({ ...profile, initialMood: mood });
+    } else {
+      // If first-time user, play tutorial
+      setStep(5);
+    }
   };
 
   return (
@@ -431,12 +437,11 @@ const OnboardingView = ({ onComplete, initialProfile }: { onComplete: (profile: 
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { emoji: '😊', label: 'Joyful' },
-                { emoji: '😌', label: 'Calm' },
+                { emoji: '😁', label: 'Very Happy' },
+                { emoji: '🙂', label: 'Happy' },
                 { emoji: '😐', label: 'Neutral' },
-                { emoji: '😔', label: 'Sad' },
-                { emoji: '🤔', label: 'Reflective' },
-                { emoji: '😫', label: 'Stressed' }
+                { emoji: '😔', label: 'Low' },
+                { emoji: '😫', label: 'Very Low' }
               ].map((m) => (
                 <button 
                   key={m.label} 
@@ -2479,12 +2484,14 @@ export default function App() {
     const fetchedProfile = await fetchProfileAndLogs(user);
     if (fetchedProfile && fetchedProfile.name) {
       localStorage.setItem('soluna_profile', JSON.stringify(fetchedProfile));
+      setProfile(fetchedProfile);
     } else {
       // Emergency fallback so the UI greeting doesn't crash if they login and don't load a matching profile
-      localStorage.setItem('soluna_profile', JSON.stringify({ name: user.username }));
+      const fallbackProfile = { name: user.username };
+      localStorage.setItem('soluna_profile', JSON.stringify(fallbackProfile));
+      setProfile(fallbackProfile);
     }
-    // Unconditionally bypass the onboarding to return directly to their dashboard.
-    setView('journal');
+    setView('onboarding');
   };
 
   const handleSignUp = async (user: UserAccount) => {
@@ -2499,6 +2506,10 @@ export default function App() {
     setProfile(profileWithUser);
     localStorage.setItem('soluna_profile', JSON.stringify(profileWithUser));
     
+    if (profileWithUser.initialMood) {
+      handleUpdateLog(formatDateKey(new Date()), { mood: profileWithUser.initialMood });
+    }
+
     if (currentUser?.id) {
       // Now that onboarding is complete and they have a profile, we persist the session
       localStorage.setItem('soluna_auth', JSON.stringify(currentUser));
