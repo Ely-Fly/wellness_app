@@ -43,7 +43,9 @@ import {
   LayoutDashboard,
   Target,
   Heart,
-  LogOut
+  LogOut,
+  PlayCircle,
+  HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ViewType, Mood, JournalEntry, UserProfile, DailyLog, Habit, UserAccount } from './types';
@@ -139,6 +141,80 @@ const BottomNav = ({ activeView, setView }: { activeView: ViewType, setView: (v:
         </button>
       ))}
     </nav>
+  );
+};
+
+const TUTORIAL_SLIDES = [
+  { id: 'dashboard', title: 'Dashboard', desc: 'This is your dashboard. Track your habits and see your daily progress here.' },
+  { id: 'journal', title: 'Journal', desc: 'Use the Journal to record your daily thoughts and check in with your mood.' },
+  { id: 'insights', title: 'Insights', desc: 'Insights help you understand patterns in your habits and mood.' },
+  { id: 'habits', title: 'Habits', desc: 'Create habits and track your streaks to stay consistent.' }
+];
+
+const TutorialModal = ({ activeKey, onClose, isDarkMode }: { activeKey: string, onClose: () => void, isDarkMode?: boolean }) => {
+  const [currentIndex, setCurrentIndex] = useState(
+    activeKey === 'onboarding' ? 0 : Math.max(0, TUTORIAL_SLIDES.findIndex(s => s.id === activeKey))
+  );
+
+  const slide = TUTORIAL_SLIDES[currentIndex];
+  const isOnboarding = activeKey === 'onboarding';
+  const isLast = currentIndex === TUTORIAL_SLIDES.length - 1;
+
+  const handleNext = () => {
+    if (!isOnboarding || isLast) onClose();
+    else setCurrentIndex(i => i + 1);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className={`w-full max-w-sm rounded-[2rem] p-6 shadow-2xl relative overflow-hidden ${isDarkMode ? 'bg-neutral-900 border border-neutral-800' : 'bg-white'}`}
+      >
+        {!isOnboarding && (
+          <button onClick={onClose} className={`absolute top-4 right-4 p-2 rounded-full transition-colors z-10 ${isDarkMode ? 'bg-neutral-800 text-neutral-400 hover:text-white' : 'bg-sage-50 text-[#8E8E8A] hover:text-[#1A1A1A]'}`}>
+            <X size={16} />
+          </button>
+        )}
+        
+        <div className="text-center mt-2 mb-6">
+          <h2 className={`text-2xl font-bold mb-4 font-display ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>{slide.title}</h2>
+          <div className="w-full aspect-video bg-neutral-100 rounded-2xl relative overflow-hidden flex items-center justify-center group mb-6 shadow-sm border border-black/5">
+            <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-sage-200/20 animate-pulse"></div>
+            <PlayCircle size={48} className="text-primary drop-shadow-md z-10 transition-transform group-hover:scale-110" />
+            <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/50 backdrop-blur-md rounded text-[9px] text-white font-bold tracking-widest z-10">0:08</div>
+          </div>
+          <p className={`text-sm italic font-serif leading-relaxed ${isDarkMode ? 'text-neutral-400' : 'text-[#4A4A4A]'}`}>{slide.desc}</p>
+        </div>
+
+        {isOnboarding && (
+          <div className="flex justify-center gap-1.5 mb-8">
+            {TUTORIAL_SLIDES.map((_, i) => (
+              <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentIndex ? 'w-6 bg-primary' : (isDarkMode ? 'w-2 bg-neutral-700' : 'w-2 bg-sage-200')}`} />
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <button 
+            onClick={handleNext}
+            className="w-full bg-primary hover:bg-primary/90 py-4 rounded-xl text-white font-sans text-sm font-bold tracking-widest uppercase shadow-lg transition-all"
+          >
+            {(isOnboarding && !isLast) ? 'Next' : (isOnboarding ? 'Finish Tutorial' : 'Close')}
+          </button>
+          {isOnboarding && (
+            <button 
+              onClick={onClose}
+              className={`w-full py-4 text-xs font-bold uppercase tracking-widest transition-colors ${isDarkMode ? 'text-neutral-500 hover:text-white' : 'text-[#8E8E8A] hover:text-[#1A1A1A]'}`}
+            >
+              Skip Tutorial
+            </button>
+          )}
+        </div>
+      </motion.div>
+    </div>
   );
 };
 
@@ -457,50 +533,10 @@ const OnboardingView = ({ onComplete, initialProfile }: { onComplete: (profile: 
         )}
 
         {step === 5 && (
-          <motion.div 
-            key="step5"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="flex-1 flex flex-col justify-center"
-          >
-            <div className="text-center mb-12">
-              <div className="size-20 bg-sage-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <LayoutDashboard size={40} className="text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold text-[#1A1A1A] mb-4">Quick Tutorial</h1>
-              <p className="text-[#4A4A4A] italic">Here's how to navigate your new space.</p>
-            </div>
-            <div className="space-y-6">
-              <div className="flex gap-4 items-start">
-                <div className="size-10 rounded-xl bg-sage-50 flex items-center justify-center shrink-0"><BookOpen size={20} className="text-primary" /></div>
-                <div>
-                  <h4 className="font-bold text-[#1A1A1A]">Journal</h4>
-                  <p className="text-sm text-[#4A4A4A]">Your daily space for mood check-ins and reflections.</p>
-                </div>
-              </div>
-              <div className="flex gap-4 items-start">
-                <div className="size-10 rounded-xl bg-sage-50 flex items-center justify-center shrink-0"><Sparkles size={20} className="text-primary" /></div>
-                <div>
-                  <h4 className="font-bold text-[#1A1A1A]">Insights</h4>
-                  <p className="text-sm text-[#4A4A4A]">See patterns in your mood and habits over time.</p>
-                </div>
-              </div>
-              <div className="flex gap-4 items-start">
-                <div className="size-10 rounded-xl bg-sage-50 flex items-center justify-center shrink-0"><User size={20} className="text-primary" /></div>
-                <div>
-                  <h4 className="font-bold text-[#1A1A1A]">Me</h4>
-                  <p className="text-sm text-[#4A4A4A]">Manage your profile and settings.</p>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => onComplete(profile)}
-              className="w-full bg-primary hover:bg-primary/90 py-5 rounded-2xl text-white font-sans text-sm font-bold tracking-widest uppercase shadow-lg transition-all mt-12"
-            >
-              Get Started
-            </button>
-          </motion.div>
+          <TutorialModal 
+            activeKey="onboarding"
+            onClose={() => onComplete(profile)}
+          />
         )}
       </AnimatePresence>
     </div>
@@ -572,7 +608,8 @@ const JournalView = ({
   isDarkMode, 
   setIsDarkMode, 
   isLoaded,
-  currentUser
+  currentUser,
+  onHelp
 }: { 
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>,
@@ -580,7 +617,8 @@ const JournalView = ({
   isDarkMode: boolean,
   setIsDarkMode: (v: boolean) => void,
   isLoaded: boolean,
-  currentUser: UserAccount | null
+  currentUser: UserAccount | null,
+  onHelp: (key: string) => void
 }) => {
   const today = formatDateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
@@ -841,6 +879,13 @@ const JournalView = ({
           </h1>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => onHelp('journal')}
+            className={`p-3 rounded-full shadow-sm border transition-all ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-primary' : 'bg-white border-sage-100 hover:bg-sage-50 text-[#8E8E8A] hover:text-primary'} flex items-center justify-center`}
+            title="Help & Tutorial"
+          >
+            <HelpCircle size={20} />
+          </button>
           <button 
             onClick={() => window.location.reload()}
             className={`p-3 rounded-full shadow-sm border transition-all ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-primary' : 'bg-white border-sage-100 hover:bg-sage-50 text-[#8E8E8A] hover:text-primary'}`}
@@ -1510,7 +1555,7 @@ const InfluenceBubbleCloud = ({ influences, onBubbleClick }: { influences: { nam
   );
 };
 
-const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, DailyLog>, isDarkMode: boolean }) => {
+const InsightsView = ({ dailyLogs, isDarkMode, onHelp }: { dailyLogs: Record<string, DailyLog>, isDarkMode: boolean, onHelp: (key: string) => void }) => {
   const [timePeriod, setTimePeriod] = useState<'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly'>('Weekly');
   const [periodOffset, setPeriodOffset] = useState(0);
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
@@ -2208,7 +2253,7 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
   );
 };
 
-const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled }: { 
+const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled, onHelp }: { 
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>, 
   onUpdate: (p: UserProfile) => void,
@@ -2216,7 +2261,8 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
   isDarkMode: boolean,
   setIsDarkMode: (v: boolean) => void,
   remindersEnabled: boolean,
-  setRemindersEnabled: (v: boolean) => void
+  setRemindersEnabled: (v: boolean) => void,
+  onHelp: (key: string) => void
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(profile?.name || '');
@@ -2259,7 +2305,15 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
   return (
     <div className="pb-24 animate-in fade-in duration-500">
       <header className="flex items-center py-6 justify-between sticky top-0 bg-transparent backdrop-blur-md z-10">
-        <div className="size-10"></div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => onHelp('profile')}
+            className={`p-3 rounded-full shadow-sm border transition-all ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-primary' : 'bg-white border-sage-100 hover:bg-sage-50 text-[#8E8E8A] hover:text-primary'}`}
+            title="Help & Tutorial"
+          >
+            <HelpCircle size={20} />
+          </button>
+        </div>
         <h2 className={`text-xl font-bold tracking-tight font-display ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>My Journey</h2>
         <button 
           onClick={() => setIsEditing(!isEditing)}
@@ -2347,6 +2401,18 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
           </div>
         </button>
         <button 
+          onClick={() => onHelp('onboarding')}
+          className={`w-full ${isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700' : 'bg-white border-sage-50 hover:bg-sage-50'} p-5 rounded-2xl flex items-center justify-between border transition-colors`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`size-10 rounded-xl ${isDarkMode ? 'bg-neutral-700' : 'bg-sage-50'} flex items-center justify-center`}>
+              <HelpCircle size={20} className="text-secondary" />
+            </div>
+            <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Replay Tutorial</span>
+          </div>
+          <ChevronRight size={20} className={isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'} />
+        </button>
+        <button 
           onClick={() => setIsDarkMode(!isDarkMode)}
           className={`w-full ${isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700' : 'bg-white border-sage-50 hover:bg-sage-50'} p-5 rounded-2xl flex items-center justify-between border transition-colors`}
         >
@@ -2402,6 +2468,7 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [activeTutorial, setActiveTutorial] = useState<string | null>(null);
 
   const fetchProfileAndLogs = async (user: UserAccount) => {
     try {
@@ -2619,9 +2686,10 @@ export default function App() {
               setIsDarkMode={setIsDarkMode}
               isLoaded={isLoaded}
               currentUser={currentUser}
+              onHelp={setActiveTutorial}
             />
           )}
-          {view === 'insights' && <InsightsView dailyLogs={dailyLogs} isDarkMode={isDarkMode} />}
+          {view === 'insights' && <InsightsView dailyLogs={dailyLogs} isDarkMode={isDarkMode} onHelp={setActiveTutorial} />}
           {view === 'profile' && (
             <ProfileView 
               profile={profile} 
@@ -2632,11 +2700,20 @@ export default function App() {
               setIsDarkMode={setIsDarkMode}
               remindersEnabled={remindersEnabled}
               setRemindersEnabled={setRemindersEnabled}
+              onHelp={setActiveTutorial}
             />
           )}
         </motion.div>
       </AnimatePresence>
       
+      {activeTutorial && (
+        <TutorialModal 
+          activeKey={activeTutorial}
+          onClose={() => setActiveTutorial(null)}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
       {!isAuthView && view !== 'onboarding' && <BottomNav activeView={view} setView={setView} />}
     </div>
   );
