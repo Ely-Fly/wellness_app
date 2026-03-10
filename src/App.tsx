@@ -2495,6 +2495,16 @@ export default function App() {
   };
 
   const handleSignUp = async (user: UserAccount) => {
+    // Explicitly enforce zero-knowledge when a new user signs up in case a previous user cache is still running
+    setDailyLogs({});
+    setProfile(null);
+    localStorage.removeItem('soluna_selected_habits');
+    localStorage.removeItem('soluna_profile');
+    localStorage.removeItem('soluna_auth');
+    if (currentUser) {
+      localStorage.removeItem(`soluna_logs_${currentUser.username}`);
+    }
+
     setCurrentUser(user);
     // Explicitly do not set soluna_auth yet, until they finish onboarding.
     // That way if they refresh mid-onboarding, they start over or go to login.
@@ -2569,10 +2579,12 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('soluna_auth');
     localStorage.removeItem('soluna_profile');
+    localStorage.removeItem('soluna_selected_habits');
     if (currentUser) {
       localStorage.removeItem(`soluna_logs_${currentUser.username}`); // clear sensitive runtime cache if any
     }
     setProfile(null);
+    setDailyLogs({});
     setCurrentUser(null);
     setView('welcome');
   };
