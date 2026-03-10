@@ -2065,7 +2065,7 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
             <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Habit Progress</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          <div className="flex flex-col gap-8">
             {habitProgress.length > 0 ? habitProgress.map((habit) => (
               <div key={habit.name}>
                 <div className="flex justify-between items-center mb-4">
