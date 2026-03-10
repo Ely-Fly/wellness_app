@@ -2406,8 +2406,8 @@ export default function App() {
   const fetchProfileAndLogs = async (user: UserAccount) => {
     try {
       const [profileRes, logsRes] = await Promise.all([
-        fetch('/api/profile', { headers: { 'x-user-id': user.id || '' } }),
-        fetch('/api/logs', { headers: { 'x-user-id': user.id || '' } })
+        fetch('/api/profile', { headers: { 'x-user-id': user.id || '' }, cache: 'no-store' }),
+        fetch('/api/logs', { headers: { 'x-user-id': user.id || '' }, cache: 'no-store' })
       ]);
       
       let fetchedProfile = null;
