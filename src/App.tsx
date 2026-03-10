@@ -42,7 +42,8 @@ import {
   PartyPopper,
   LayoutDashboard,
   Target,
-  Heart
+  Heart,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ViewType, Mood, JournalEntry, UserProfile, DailyLog, Habit, UserAccount } from './types';
@@ -2203,10 +2204,11 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
   );
 };
 
-const ProfileView = ({ profile, dailyLogs, onUpdate, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled }: { 
+const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled }: { 
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>, 
   onUpdate: (p: UserProfile) => void,
+  onLogout: () => void,
   isDarkMode: boolean,
   setIsDarkMode: (v: boolean) => void,
   remindersEnabled: boolean,
@@ -2353,6 +2355,18 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, isDarkMode, setIsDarkMode, 
           <div className={`w-12 h-6 ${isDarkMode ? 'bg-primary' : 'bg-sage-100'} rounded-full relative transition-colors`}>
             <div className={`absolute ${isDarkMode ? 'right-1' : 'left-1'} top-1 size-4 bg-white rounded-full transition-all`}></div>
           </div>
+        </button>
+        <button 
+          onClick={onLogout}
+          className={`w-full ${isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700' : 'bg-white border-sage-50 hover:bg-sage-50'} p-5 rounded-2xl flex items-center justify-between border transition-colors mt-8`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`size-10 rounded-xl ${isDarkMode ? 'bg-neutral-700' : 'bg-sage-50'} flex items-center justify-center`}>
+              <LogOut size={20} className="text-[#E88D5D]" />
+            </div>
+            <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Log Out</span>
+          </div>
+          <ChevronRight size={16} className={isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'} />
         </button>
         <button 
           onClick={() => {
@@ -2540,6 +2554,17 @@ export default function App() {
     });
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('soluna_auth');
+    localStorage.removeItem('soluna_profile');
+    if (currentUser) {
+      localStorage.removeItem(`soluna_logs_${currentUser.username}`); // clear sensitive runtime cache if any
+    }
+    setProfile(null);
+    setCurrentUser(null);
+    setView('welcome');
+  };
+
   if (!isLoaded) return null;
 
   const isAuthView = ['welcome', 'signup', 'login', 'dashboard_placeholder'].includes(view);
@@ -2578,6 +2603,7 @@ export default function App() {
               profile={profile} 
               dailyLogs={dailyLogs} 
               onUpdate={handleProfileUpdate}
+              onLogout={handleLogout}
               isDarkMode={isDarkMode}
               setIsDarkMode={setIsDarkMode}
               remindersEnabled={remindersEnabled}
