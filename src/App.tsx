@@ -1539,8 +1539,13 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
     const start = new Date();
     
     if (timePeriod === 'Weekly') {
-      end.setDate(end.getDate() - (periodOffset * 7));
-      start.setDate(end.getDate() - 6);
+      const now = new Date();
+      now.setDate(now.getDate() - (periodOffset * 7));
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      start.setTime(new Date(now.getFullYear(), now.getMonth(), diff).getTime());
+      end.setTime(start.getTime());
+      end.setDate(start.getDate() + 6); // Sunday
     } else if (timePeriod === 'Monthly') {
       end.setMonth(end.getMonth() - periodOffset);
       start.setMonth(end.getMonth());
@@ -1599,10 +1604,16 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
       let logsInPoint: DailyLog[] = [];
 
       if (timePeriod === 'Weekly') {
-        const offsetDay = (6 - i) - 1; // shift backwards to make index 0 = Monday
-        date.setDate(date.getDate() - offsetDay);
-        // if today is Sunday (day 0), this logic shifts correctly via offset
-        const dateStr = formatDateKey(date);
+        const now = new Date();
+        now.setDate(now.getDate() - (periodOffset * 7));
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(now.getFullYear(), now.getMonth(), diff);
+        
+        const targetDate = new Date(monday);
+        targetDate.setDate(monday.getDate() + i);
+
+        const dateStr = formatDateKey(targetDate);
         logsInPoint = periodLogs.filter(l => l.date === dateStr);
         // Force array ordering: M, T, W, T, F, S, S
         const daysOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -1650,7 +1661,10 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
     const date = new Date();
     if (timePeriod === 'Weekly') {
       date.setDate(date.getDate() - (periodOffset * 7));
-      return `Week of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      const day = date.getDay();
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(date.getFullYear(), date.getMonth(), diff);
+      return `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     } else if (timePeriod === 'Monthly') {
       date.setMonth(date.getMonth() - periodOffset);
       return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
