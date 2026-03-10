@@ -1687,51 +1687,36 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
   };
 
   const calculateStreak = (name: string) => {
-    let streak = 0;
-    const today = new Date();
-    const todayStr = formatDateKey(today);
+    let maxStreak = 0;
+    let currentStreak = 0;
+    let previousDate: Date | null = null;
 
-    // Filter logs for this habit and sort descending
-    const habitLogs = logsArray
-      .filter(l => l.habits.find(h => h.name === name))
-      .sort((a, b) => b.date.localeCompare(a.date));
+    const habitLogs = periodLogs
+      .filter(l => l.habits.find(h => h.name === name)?.completed)
+      .sort((a, b) => a.date.localeCompare(b.date));
 
-    if (habitLogs.length === 0) return 0;
-
-    let expectedDate = new Date(); // Start looking back from today
-    for (let i = 0; i < habitLogs.length; i++) {
-      const log = habitLogs[i];
-      const expectedStr = formatDateKey(expectedDate);
-
-      if (log.date === expectedStr) {
-        // Log is for the expected day
-        const h = log.habits.find(hab => hab.name === name);
-        if (h && h.completed) {
-          streak++;
-          // Expect next log to be from the day before
-          expectedDate.setDate(expectedDate.getDate() - 1);
-        } else if (log.date === todayStr && streak === 0) {
-          // If it's today and not completed, maybe yesterday was part of a streak
-          expectedDate.setDate(expectedDate.getDate() - 1);
-        } else {
-          // Found a missing link or incomplete habit
-          break;
-        }
-      } else if (log.date > expectedStr) {
-        // Skip logs that are somehow in the future or out of band
-        continue;
-      } else if (log.date < expectedStr) {
-        // We missed a day
-        if (expectedStr === todayStr && streak === 0) {
-           // Allow skipping today if streak started yesterday
-           expectedDate.setDate(expectedDate.getDate() - 1);
-           i--; // Re-process this log for yesterday
-        } else {
-           break; 
+    for (const log of habitLogs) {
+      const [yearStr, monthStr, dayStr] = log.date.split('-');
+      const currDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+      
+      if (!previousDate) {
+        currentStreak = 1;
+      } else {
+        const diffTime = currDate.getTime() - previousDate.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 1) {
+          currentStreak++;
+        } else if (diffDays > 1) {
+          maxStreak = Math.max(maxStreak, currentStreak);
+          currentStreak = 1;
         }
       }
+      previousDate = currDate;
     }
-    return streak;
+    
+    maxStreak = Math.max(maxStreak, currentStreak);
+    return maxStreak;
   };
 
   // 3. Habit Progress Data
