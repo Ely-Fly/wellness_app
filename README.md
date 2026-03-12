@@ -1,20 +1,26 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+🌟 Overview
+Soluna Wellness provides a calming space for daily reflection. By tracking moods and habits, the app leverages the Gemini API to provide personalized insights, helping users identify patterns and improve their mental harmony.
 
-# Run and deploy your AI Studio app
+LINK: https://wellness-app-xi-sandy.vercel.app/
 
-This contains everything you need to run your app locally.
+✨ Key Features
+Daily Mood Logging: Quickly record emotional states with an intuitive, minimalist UI.
 
-View your app in AI Studio: https://ai.studio/apps/9abb111e-f9cf-4183-b389-47349c610895
+Habit Tracking: Monitor daily rituals and see how consistency impacts your overall wellness.
 
-## Run Locally
+Influence Analysis: Track external factors like "Work" or "Sleep" to see how they correlate with your mood.
 
-**Prerequisites:**  Node.js
+AI Insights: Powered by Google Gemini to provide meaningful feedback based on your logging history.
 
+Modern Soft-UI: A Neumorphic-inspired design built for a low-stress user experience.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+🛠️ Tech Stack
+Frontend: React, Vite, TypeScript
+
+Styling: Tailwind CSS (or your specific styling library)
+
+AI Integration: Google AI Studio / Gemini API
+
+Backend/Database: Firebase (for authentication and data persistence)
+
+Deployment: Vercel
