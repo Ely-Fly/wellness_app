@@ -582,13 +582,16 @@ const JournalEntryModal = ({
   const [reflectionInput, setReflectionInput] = useState('');
   const [potentialHabits, setPotentialHabits] = useState<string[]>([]);
   const [selectedHabitNames, setSelectedHabitNames] = useState<string[]>(() => {
+    if (selectedDate !== formatDateKey(new Date())) return [];
     const saved = localStorage.getItem('soluna_selected_habits');
     return saved ? JSON.parse(saved) : [];
   });
 
   useEffect(() => {
-    localStorage.setItem('soluna_selected_habits', JSON.stringify(selectedHabitNames));
-  }, [selectedHabitNames]);
+    if (selectedDate === formatDateKey(new Date())) {
+      localStorage.setItem('soluna_selected_habits', JSON.stringify(selectedHabitNames));
+    }
+  }, [selectedHabitNames, selectedDate]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -759,7 +762,7 @@ const JournalEntryModal = ({
         <div className="px-6 sm:px-8 mt-8 space-y-10">
           <section>
             <div className={`rounded-3xl p-6 text-center border ${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white border-sage-50'}`}>
-              <h3 className={`text-xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>How are you feeling on this day?</h3>
+              <h3 className={`text-xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>How are you feeling today?</h3>
               
               <div className="flex justify-center gap-3 sm:gap-4 flex-wrap">
                 {[
