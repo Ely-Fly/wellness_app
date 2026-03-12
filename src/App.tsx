@@ -149,7 +149,6 @@ const BottomNav = ({
             isDarkMode ? 'bg-neutral-800 border-primary shadow-black/50' : 'bg-[#F9FBF9] border-[#2C4C3B] shadow-[#2C4C3B]/10'
           }`}>
             <p className={`text-[11px] leading-relaxed text-center ${isDarkMode ? 'text-neutral-200' : 'text-[#1A1A1A]'}`}>
-              <span className={`font-bold mr-1 ${isDarkMode ? 'text-primary' : 'text-[#2C4C3B]'}`}>NEW!</span>
               Tap the + button in the bottom menu to add a daily log.
             </p>
             <div className={`absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-4 border-b-2 border-r-2 transform rotate-45 ${
@@ -2623,7 +2622,12 @@ export default function App() {
             setSelectedDate(formatDateKey(new Date()));
             setIsJournalModalOpen(true);
           }} 
-          hasLoggedToday={!!dailyLogs[formatDateKey(new Date())]}
+          hasLoggedToday={(() => {
+            const todayLog = dailyLogs[formatDateKey(new Date())];
+            if (!todayLog) return false;
+            const isJustOnboarded = Object.keys(dailyLogs).length === 1 && todayLog.habits.length === 0 && !todayLog.reflection && (!todayLog.influences || todayLog.influences.length === 0) && !!todayLog.mood;
+            return !isJustOnboarded;
+          })()}
           isDarkMode={isDarkMode}
         />
       )}
