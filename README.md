@@ -1,7 +1,7 @@
 🌟 Overview
 Soluna Wellness provides a calming space for daily reflection. By tracking moods and habits, the app leverages the Gemini API to provide personalized insights, helping users identify patterns and improve their mental harmony.
 
-[![Vercel](https://img.shields.io/badge/Live_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://wellness-app-xi-sandy.vercel.app/)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 
 ✨ Key Features
 Daily Mood Logging: Quickly record emotional states with an intuitive, minimalist UI.
