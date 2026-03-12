@@ -43,9 +43,9 @@ import {
   LayoutDashboard,
   Target,
   Heart,
-  LogOut
+  LogOut,
+  Plus
 } from 'lucide-react';
-import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
 import { motion, AnimatePresence } from 'motion/react';
 import { ViewType, Mood, JournalEntry, UserProfile, DailyLog, Habit, UserAccount } from './types';
 
@@ -118,27 +118,35 @@ const ENTRIES: JournalEntry[] = [
 
 // --- Components ---
 
-const BottomNav = ({ activeView, setView }: { activeView: ViewType, setView: (v: ViewType) => void }) => {
-  const navItems = [
-    { id: 'journal', label: 'Journal', icon: BookOpen },
-    { id: 'insights', label: 'Insights', icon: Sparkles },
-    { id: 'profile', label: 'Me', icon: User },
-  ];
-
+const BottomNav = ({ activeView, setView, onOpenJournal }: { activeView: ViewType, setView: (v: ViewType) => void, onOpenJournal: () => void }) => {
   return (
     <nav className="fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-sage-100 px-8 py-4 rounded-[2rem] flex justify-between items-center z-50 max-w-md mx-auto shadow-lg shadow-sage-100/20">
-      {navItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => setView(item.id as ViewType)}
-          className={`tour-${item.id}-tab flex flex-col items-center gap-1.5 transition-all ${
-            activeView === item.id ? 'text-primary scale-110' : 'text-[#8E8E8A] hover:text-[#4A4A4A]'
-          }`}
-        >
-          <item.icon size={20} strokeWidth={activeView === item.id ? 2.5 : 2} />
-          <span className="text-[9px] font-bold uppercase tracking-[0.15em]">{item.label}</span>
-        </button>
-      ))}
+      <button
+        onClick={() => setView('insights')}
+        className={`flex flex-col items-center gap-1.5 transition-all w-16 ${
+          activeView === 'insights' ? 'text-primary scale-110' : 'text-[#8E8E8A] hover:text-[#4A4A4A]'
+        }`}
+      >
+        <Sparkles size={20} strokeWidth={activeView === 'insights' ? 2.5 : 2} />
+        <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Insights</span>
+      </button>
+
+      <button
+        onClick={onOpenJournal}
+        className="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transform -translate-y-4 hover:scale-105 transition-all border-4 border-cream-50"
+      >
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
+
+      <button
+        onClick={() => setView('profile')}
+        className={`flex flex-col items-center gap-1.5 transition-all w-16 ${
+          activeView === 'profile' ? 'text-primary scale-110' : 'text-[#8E8E8A] hover:text-[#4A4A4A]'
+        }`}
+      >
+        <User size={20} strokeWidth={activeView === 'profile' ? 2.5 : 2} />
+        <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Me</span>
+      </button>
     </nav>
   );
 };
@@ -517,30 +525,27 @@ const ReflectionCard = ({ content, label }: { content: string, label: string, ke
   );
 };
 
-const JournalView = ({ 
+const JournalEntryModal = ({ 
+  selectedDate,
   profile, 
   dailyLogs, 
   onUpdateLog, 
+  onClose,
   isDarkMode, 
   setIsDarkMode, 
   isLoaded,
-  currentUser,
-  onHelp
+  currentUser
 }: { 
+  selectedDate: string,
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>,
   onUpdateLog: (date: string, log: Partial<DailyLog>) => void,
+  onClose: () => void,
   isDarkMode: boolean,
   setIsDarkMode: (v: boolean) => void,
   isLoaded: boolean,
   currentUser: UserAccount | null
 }) => {
-  const today = formatDateKey(new Date());
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [monthOffset, setMonthOffset] = useState(0);
-  const [calendarView, setCalendarView] = useState<'weekly' | 'monthly'>('weekly');
-  
   const currentLog: DailyLog = dailyLogs[selectedDate] || {
     date: selectedDate,
     habits: []
@@ -558,11 +563,8 @@ const JournalView = ({
     localStorage.setItem('soluna_selected_habits', JSON.stringify(selectedHabitNames));
   }, [selectedHabitNames]);
 
-  // Migration and initialization
   useEffect(() => {
-    if (!isLoaded) return; // Prevent overwriting fetched DB state before app has loaded
-    
-    // 1. One-time migration for old default habits (target specific old IDs)
+    if (!isLoaded) return;
     const oldIds = ['1', '2', '3'];
     const isOldDefault = currentLog.habits.length === 3 && 
                          currentLog.habits.every(h => oldIds.includes(h.id));
@@ -572,7 +574,6 @@ const JournalView = ({
       return;
     }
 
-    // 2. Initialize potential habits if none are set for the day
     if (currentLog.habits.length === 0 && potentialHabits.length === 0) {
       refreshPotentialHabits();
     }
@@ -610,126 +611,67 @@ const JournalView = ({
   const handleMoodSelect = (mood: string) => {
     onUpdateLog(selectedDate, { mood });
   };
-
   const handleMoodInfluenceChange = (text: string) => {
     onUpdateLog(selectedDate, { moodInfluence: text });
   };
-
   const handleInfluenceAdd = (influence: string) => {
     if (!influence.trim()) return;
     const currentInfluences = currentLog.influences || [];
     if (currentInfluences.includes(influence.trim())) return;
     onUpdateLog(selectedDate, { influences: [...currentInfluences, influence.trim()] });
   };
-
   const handleInfluenceRemove = (influence: string) => {
     const currentInfluences = currentLog.influences || [];
     onUpdateLog(selectedDate, { influences: currentInfluences.filter(i => i !== influence) });
   };
-
   const handleEnergySelect = (energy: number) => {
     onUpdateLog(selectedDate, { energy });
   };
-
   const handleHabitToggle = (habitId: string) => {
     const updatedHabits = currentLog.habits.map(h => 
       h.id === habitId ? { ...h, completed: !h.completed } : h
     );
     onUpdateLog(selectedDate, { habits: updatedHabits });
   };
-
-  const handleReflectionChange = (text: string) => {
-    setReflectionInput(text);
-  };
+  const handleReflectionChange = (text: string) => setReflectionInput(text);
 
   const handleSave = () => {
-    if (!reflectionInput.trim()) return;
-    
-    let currentReflections = [...(currentLog.reflections || [])];
-    // Migration: if there's an old single reflection, add it first if it's not already there and not "Skipped"
-    if (currentLog.reflection && 
-        currentLog.reflection !== 'Skipped for today.' && 
-        !currentReflections.includes(currentLog.reflection)) {
-      currentReflections.unshift(currentLog.reflection);
-    }
-    
-    const energyIcons = ['🌿', '✨', '☁️', '☕', '🌙'];
-    let finalReflection = reflectionInput.trim();
-    if (currentLog.energy !== undefined && currentLog.energy >= 0 && currentLog.energy < energyIcons.length) {
-        finalReflection += ` ${energyIcons[currentLog.energy]}`;
-    }
+    if (reflectionInput.trim()) {
+      let currentReflections = [...(currentLog.reflections || [])];
+      if (currentLog.reflection && 
+          currentLog.reflection !== 'Skipped for today.' && 
+          !currentReflections.includes(currentLog.reflection)) {
+        currentReflections.unshift(currentLog.reflection);
+      }
+      
+      const energyIcons = ['🌿', '✨', '☁️', '☕', '🌙'];
+      let finalReflection = reflectionInput.trim();
+      if (currentLog.energy !== undefined && currentLog.energy >= 0 && currentLog.energy < energyIcons.length) {
+          finalReflection += ` ${energyIcons[currentLog.energy]}`;
+      }
 
-    const updatedReflections = [...currentReflections, finalReflection];
-    onUpdateLog(selectedDate, { 
-      reflections: updatedReflections,
-      reflection: '' // Clear old field
-    });
+      const updatedReflections = [...currentReflections, finalReflection];
+      onUpdateLog(selectedDate, { 
+        reflections: updatedReflections,
+        reflection: '' 
+      });
+    }
     
-    setReflectionInput('');
     setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
+    setTimeout(() => {
+      setIsSaved(false);
+      onClose();
+    }, 1000);
   };
 
   const handleSkip = () => {
     onUpdateLog(selectedDate, { reflection: 'Skipped for today.' });
+    onClose();
   };
 
-  // Generate week dates
-  const getWeekDates = () => {
-    const now = new Date();
-    now.setDate(now.getDate() - (weekOffset * 7));
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    const monday = new Date(now.getFullYear(), now.getMonth(), diff);
-    
-    return Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return formatDateKey(d);
-    });
-  };
-
-  const weekDates = getWeekDates();
-  const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const monthDayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-  // Generate month dates
-  const getMonthData = () => {
-    const now = new Date();
-    now.setMonth(now.getMonth() - monthOffset);
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - startDate.getDay()); // Start from Sunday
-    
-    const endDate = new Date(lastDay);
-    endDate.setDate(endDate.getDate() + (6 - endDate.getDay())); // End on Saturday
-    
-    const days = [];
-    const curr = new Date(startDate);
-    while (curr <= endDate) {
-      days.push(formatDateKey(curr));
-      curr.setDate(curr.getDate() + 1);
-    }
-    
-    return {
-      days,
-      monthName: now.toLocaleDateString('en-US', { month: 'long' }),
-      year,
-      currentMonth: month
-    };
-  };
-
-  const monthData = getMonthData();
-
-  // Calculate habit streak
   const calculateHabitStreak = () => {
     let streak = 0;
-    const date = new Date();
+    const date = new Date(selectedDate);
     
     while (true) {
       const dateStr = formatDateKey(date);
@@ -738,13 +680,11 @@ const JournalView = ({
         streak++;
         date.setDate(date.getDate() - 1);
       } else {
-        // If it's today and not complete, check yesterday
-        if (dateStr === today && streak === 0) {
+        if (dateStr === formatDateKey(new Date()) && streak === 0) {
           date.setDate(date.getDate() - 1);
           const yesterdayStr = formatDateKey(date);
           const yLog = dailyLogs[yesterdayStr];
           if (yLog && yLog.habits.length > 0 && yLog.habits.every(h => h.completed)) {
-            // Streak continues from yesterday
             continue;
           }
         }
@@ -759,7 +699,6 @@ const JournalView = ({
   const totalHabits = currentLog.habits.length;
   const progressPercent = totalHabits > 0 ? Math.round((completedHabits / totalHabits) * 100) : 0;
 
-  // Get prompt based on date
   const getDailyPrompt = (dateStr: string) => {
     const seed = dateStr.split('-').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return REFLECTION_PROMPTS[seed % REFLECTION_PROMPTS.length];
@@ -767,565 +706,265 @@ const JournalView = ({
 
   const dailyPrompt = getDailyPrompt(selectedDate);
 
-  // Find a past memory to surface
-  const getPastMemory = () => {
-    const pastLogs = Object.values(dailyLogs).filter(log => 
-      log.date < selectedDate && 
-      (log.mood || (log.reflection && log.reflection !== 'Skipped for today.') || (log.reflections && log.reflections.length > 0))
-    );
-    if (pastLogs.length === 0) return null;
-    // Pick a random one or "on this day" if possible
-    // For now, let's pick a random one from the past
-    const randomIndex = Math.floor(Math.random() * pastLogs.length);
-    return pastLogs[randomIndex];
-  };
-
-  const pastMemory = getPastMemory();
-
   return (
-    <div className="pb-24 animate-in fade-in duration-500">
-      <header className="mb-10 flex justify-between items-start">
-        <div>
-          <p className={`text-sm italic mb-2 ${isDarkMode ? 'text-neutral-500' : 'text-[#4A4A4A]'}`}>
-            {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
-          <h1 className={`text-4xl tracking-tight ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>
-            {profile?.name ? `Hello, ${profile.name}` : (currentUser?.username ? `Hello, ${currentUser.username}` : 'Soluna Morning')}
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => window.location.reload()}
-            className={`p-3 rounded-full shadow-sm border transition-all ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-primary' : 'bg-white border-sage-100 hover:bg-sage-50 text-[#8E8E8A] hover:text-primary'}`}
-            title="Refresh App"
-          >
-            <RefreshCw size={20} />
-          </button>
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-3 rounded-full shadow-sm border transition-colors ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-primary' : 'bg-white border-sage-100 hover:bg-sage-50 text-[#4A4A4A]'}`}
-          >
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-        </div>
-      </header>
-
-      {/* Calendar Section */}
-      <section className="mb-10">
-        <div className={`rounded-[2rem] p-6 shadow-sm border ${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-sage-50'}`}>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Your Journey</h2>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => setCalendarView(calendarView === 'weekly' ? 'monthly' : 'weekly')}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
-                  calendarView === 'monthly' ? 'bg-primary/10 text-primary' : (isDarkMode ? 'bg-neutral-700 text-neutral-400 hover:text-primary' : 'bg-sage-50 text-[#8E8E8A] hover:text-primary')
-                }`}
-              >
-                <Calendar size={14} />
-                <span className="text-[9px] font-bold uppercase tracking-widest">
-                  {calendarView === 'weekly' ? 'Monthly' : 'Weekly'}
-                </span>
-              </button>
-
-              <button 
-                onClick={() => {
-                  setWeekOffset(0);
-                  setMonthOffset(0);
-                  setSelectedDate(today);
-                }}
-                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
-                  selectedDate === today ? 'bg-primary/10 text-primary' : (isDarkMode ? 'bg-neutral-700 text-neutral-400 hover:text-primary' : 'bg-sage-50 text-[#8E8E8A] hover:text-primary')
-                }`}
-              >
-                <Clock size={14} />
-                <span className="text-[9px] font-bold uppercase tracking-widest">Today</span>
-              </button>
-            </div>
+    <div className="fixed inset-0 z-[100] flex justify-center items-end sm:items-center bg-black/40 backdrop-blur-sm p-4 sm:p-6" onClick={onClose}>
+      <div 
+        className={`w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl sm:rounded-[2.5rem] shadow-2xl pb-8 animate-in slide-in-from-bottom-8 duration-300 ${isDarkMode ? 'bg-neutral-900 border border-neutral-700' : 'bg-cream-50'}`} 
+        onClick={e => e.stopPropagation()}
+      >
+        <header className={`px-8 py-6 flex justify-between items-center sticky top-0 z-10 border-b backdrop-blur-md ${isDarkMode ? 'bg-neutral-900/90 border-neutral-800' : 'bg-cream-50/90 border-sage-100/50'}`}>
+          <div>
+            <p className={`text-sm italic mb-1 ${isDarkMode ? 'text-neutral-500' : 'text-[#4A4A4A]'}`}>
+              {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+            <h2 className={`text-2xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>
+              {selectedDate === formatDateKey(new Date()) ? "Today's Entry" : "Past Entry"}
+            </h2>
           </div>
+          <button 
+            onClick={onClose}
+            className={`p-3 rounded-full hover:scale-105 transition-all shadow-sm border ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white' : 'bg-white border-sage-100 hover:bg-sage-50 text-[#8E8E8A] hover:text-[#1A1A1A]'}`}
+          >
+            <X size={20} />
+          </button>
+        </header>
 
-          <div className={`flex justify-between items-center mb-6 p-2 rounded-2xl ${isDarkMode ? 'bg-neutral-900/50' : 'bg-sage-50/50'}`}>
-            <button 
-              onClick={() => {
-                if (calendarView === 'weekly') setWeekOffset(prev => prev + 1);
-                else setMonthOffset(prev => prev + 1);
-              }}
-              className={`p-1 rounded-full transition-colors shadow-sm ${isDarkMode ? 'bg-neutral-800 text-neutral-500 hover:text-primary' : 'bg-white text-[#8E8E8A] hover:text-primary'}`}
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className={`text-[10px] font-sans uppercase tracking-widest font-bold ${isDarkMode ? 'text-neutral-400' : 'text-[#4A4A4A]'}`}>
-              {calendarView === 'weekly' ? (
-                weekOffset === 0 ? 'This Week' : 
-                weekOffset === 1 ? 'Last Week' : 
-                `${weekOffset} Weeks Ago`
-              ) : (
-                `${monthData.monthName} ${monthData.year}`
-              )}
-            </span>
-            <button 
-              onClick={() => {
-                if (calendarView === 'weekly') setWeekOffset(prev => Math.max(0, prev - 1));
-                else setMonthOffset(prev => Math.max(0, prev - 1));
-              }}
-              disabled={calendarView === 'weekly' ? weekOffset === 0 : monthOffset === 0}
-              className={`p-1 rounded-full transition-colors shadow-sm disabled:opacity-20 ${isDarkMode ? 'bg-neutral-800 text-neutral-500 hover:text-primary' : 'bg-white text-[#8E8E8A] hover:text-primary'}`}
-            >
-              <ChevronLeft size={18} className="rotate-180" />
-            </button>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {calendarView === 'weekly' ? (
-              <motion.div 
-                key="weekly"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex justify-between"
-              >
-                {weekDates.map((date, i) => {
-                  const isSelected = selectedDate === date;
-                  const isToday = today === date;
-                  const log = dailyLogs[date];
-                  const hasMood = !!log?.mood;
-                  
-                  return (
-                    <button 
-                      key={date}
-                      onClick={() => setSelectedDate(date)}
-                      className="flex flex-col items-center gap-2 group"
-                    >
-                      <span className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? 'text-primary' : 'text-sage-200'}`}>
-                        {dayNames[i]}
-                      </span>
-                      <div className={`relative size-10 rounded-full flex items-center justify-center transition-all ${
-                        isSelected ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-110' : 
-                        isToday ? 'bg-sage-50 text-[#4A4A4A] border border-primary/20' : 'text-[#8E8E8A] hover:bg-sage-50'
-                      }`}>
-                        <span className="text-xs font-bold">{new Date(date).getDate()}</span>
-                        {hasMood && !isSelected && (
-                          <div className="absolute -bottom-1 size-1.5 bg-primary rounded-full"></div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </motion.div>
-            ) : (
-              <motion.div 
-                key="monthly"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <div className="grid grid-cols-7 gap-y-4">
-                  {monthDayNames.map(day => (
-                    <div key={day} className="text-center text-[10px] font-bold text-sage-200 uppercase tracking-widest">
-                      {day}
+        <div className="px-6 sm:px-8 mt-8 space-y-10">
+          <section>
+            <div className={`rounded-3xl p-6 text-center border ${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white border-sage-50'}`}>
+              <h3 className={`text-xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>How are you feeling on this day?</h3>
+              
+              <div className="flex justify-center gap-3 sm:gap-4 flex-wrap">
+                {[
+                  { emoji: '😁', label: 'Very Happy' },
+                  { emoji: '🙂', label: 'Happy' },
+                  { emoji: '😐', label: 'Neutral' },
+                  { emoji: '😔', label: 'Low' },
+                  { emoji: '😫', label: 'Very Low' }
+                ].map((m) => (
+                  <button 
+                    key={m.label} 
+                    onClick={() => handleMoodSelect(m.label)}
+                    className="flex flex-col items-center gap-2 group"
+                  >
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full border flex items-center justify-center text-xl sm:text-2xl shadow-sm transition-all group-hover:scale-105 ${
+                      (currentLog.mood === m.label && currentLog.date !== undefined && !!currentLog.mood)
+                        ? 'border-primary ring-4 ring-primary/10 scale-110 bg-primary/5' 
+                        : (isDarkMode ? 'bg-neutral-800 border-neutral-600 hover:border-neutral-500' : 'bg-white border-sage-100')
+                    }`}>
+                      {m.emoji}
                     </div>
-                  ))}
-                  {monthData.days.map((date) => {
-                    const d = new Date(date);
-                    const isSelected = selectedDate === date;
-                    const isToday = today === date;
-                    const isCurrentMonth = d.getMonth() === monthData.currentMonth;
-                    const log = dailyLogs[date];
-                    const hasMood = !!log?.mood;
+                    <span className={`text-[9px] sm:text-[10px] uppercase tracking-widest font-sans transition-colors ${
+                      currentLog.mood === m.label ? 'text-primary font-bold' : (isDarkMode ? 'text-neutral-500 group-hover:text-neutral-300' : 'text-[#8E8E8A] group-hover:text-primary')
+                    }`}>
+                      {m.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
+          <section>
+            <div className={`rounded-3xl p-6 border ${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white border-sage-50'}`}>
+              <h3 className={`text-xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>What influenced your feeling today?</h3>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {(currentLog.influences || []).map((inf, i) => (
+                  <motion.div 
+                    initial={{ scale: 0 }} animate={{ scale: 1 }}
+                    key={i} 
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${isDarkMode ? 'bg-neutral-700 text-white' : 'bg-sage-100 text-sage-300'}`}
+                  >
+                    {inf}
+                    <button onClick={() => handleInfluenceRemove(inf)} className="hover:text-red-400 transition-colors ml-1"><X size={12} /></button>
+                  </motion.div>
+                ))}
+              </div>
+              <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+                {['Sleep', 'Work', 'Family', 'Exercise', 'Diet', 'Weather'].map(idea => (
+                  <button key={idea} onClick={() => handleInfluenceAdd(idea)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${isDarkMode ? 'border-neutral-600 text-neutral-400 hover:bg-neutral-700 hover:text-white' : 'border-sage-100 text-[#8E8E8A] hover:bg-sage-50 hover:text-[#1A1A1A]'}`}>
+                    + {idea}
+                  </button>
+                ))}
+              </div>
+              <input 
+                type="text" 
+                placeholder="Custom influence..." 
+                className={`w-full p-3 rounded-xl border text-sm ${isDarkMode ? 'bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500' : 'bg-[#FAFAFA] border-[#E5E5E0] text-[#1A1A1A] placeholder-[#8E8E8A]'}`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleInfluenceAdd(e.currentTarget.value);
+                    e.currentTarget.value = '';
+                  }
+                }}
+              />
+            </div>
+          </section>
+
+          <section>
+            <div className={`rounded-3xl p-6 border ${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white border-sage-50'}`}>
+              <header className="mb-6">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Habit Tracking</h3>
+                  {currentLog.habits.length > 0 && (
+                    <button 
+                      onClick={() => {
+                        if (confirm('Reset habits for this day?')) {
+                          onUpdateLog(selectedDate, { habits: [] });
+                          refreshPotentialHabits();
+                        }
+                      }}
+                      className="text-[10px] font-bold text-[#8E8E8A] hover:text-primary uppercase tracking-widest transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                {currentLog.habits.length > 0 ? (
+                  <>
+                    <div className="flex items-center gap-3 mt-4">
+                      <div className={`flex-1 h-2 rounded-full overflow-hidden relative ${isDarkMode ? 'bg-neutral-700' : 'bg-sage-50'}`}>
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPercent}%` }}
+                          className={`h-full transition-colors duration-500 ${progressPercent === 100 ? 'bg-green-500' : 'bg-primary'}`}
+                        />
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-widest ${progressPercent === 100 ? 'text-green-500' : (isDarkMode ? 'text-neutral-400' : 'text-[#8E8E8A]')}`}>
+                        {completedHabits}/{totalHabits}
+                      </span>
+                    </div>
+                    <p className={`text-xs italic mt-2 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Pick up to 3 habits to focus on</p>
+                  </>
+                ) : (
+                  <p className={`text-xs italic ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Pick up to 3 habits to focus on</p>
+                )}
+              </header>
+
+              {currentLog.habits.length > 0 ? (
+                <div className="space-y-3">
+                  {currentLog.habits.map((habit) => (
+                    <motion.button 
+                      key={habit.id}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleHabitToggle(habit.id)}
+                      className={`w-full p-4 rounded-xl border transition-all flex items-center justify-between ${
+                        habit.completed 
+                          ? (isDarkMode ? 'bg-primary/20 border-primary/50' : 'bg-primary/5 border-primary/20')
+                          : (isDarkMode ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-sage-50')
+                      }`}
+                    >
+                      <span className={`font-medium ${habit.completed ? 'text-primary line-through opacity-80' : (isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]')}`}>
+                        {habit.name}
+                      </span>
+                      <div className={`size-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                        habit.completed ? 'bg-primary border-primary' : (isDarkMode ? 'border-neutral-500' : 'border-sage-100')
+                      }`}>
+                        {habit.completed && <CheckCircle2 size={14} className="text-white" />}
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {potentialHabits.map((name) => {
+                    const isSelected = selectedHabitNames.includes(name);
                     return (
-                      <button 
-                        key={date}
-                        onClick={() => setSelectedDate(date)}
-                        className={`flex flex-col items-center gap-1 group relative py-1 ${!isCurrentMonth ? 'opacity-20' : ''}`}
+                      <button
+                        key={name}
+                        onClick={() => toggleHabitSelection(name)}
+                        className={`w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between ${
+                          isSelected 
+                            ? (isDarkMode ? 'bg-primary/20 border-primary' : 'bg-primary/10 border-primary') 
+                            : (isDarkMode ? 'bg-neutral-800 border-neutral-600' : 'bg-white border-sage-50')
+                        }`}
                       >
-                        <div className={`size-8 rounded-full flex items-center justify-center transition-all ${
-                          isSelected ? 'bg-primary text-white shadow-md scale-110' : 
-                          isToday ? 'bg-sage-50 text-[#4A4A4A] border border-primary/20' : 'text-[#8E8E8A] hover:bg-sage-50'
-                        }`}>
-                          <span className="text-[10px] font-bold">{d.getDate()}</span>
-                        </div>
-                        {hasMood && !isSelected && (
-                          <div className="size-1 bg-primary rounded-full"></div>
-                        )}
+                        <span className={`text-sm font-medium ${isSelected ? 'text-primary' : (isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]')}`}>{name}</span>
+                        {isSelected && <CheckCircle2 size={16} className="text-primary" />}
                       </button>
                     );
                   })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </section>
-
-      {/* Daily Check-in */}
-      <section className="mb-8">
-        <div className="bg-sage-50 border border-sage-100 rounded-[2rem] p-8 text-center">
-          <div className="mb-8">
-            <h2 className="text-2xl text-[#1A1A1A] font-bold mb-2">Daily Check-in</h2>
-            <p className="text-[#4A4A4A] italic text-sm mb-8">How were you feeling on this day?</p>
-            
-            <div className="flex justify-center gap-4 flex-wrap tour-mood">
-              {[
-                { emoji: '😁', label: 'Very Happy' },
-                { emoji: '🙂', label: 'Happy' },
-                { emoji: '😐', label: 'Neutral' },
-                { emoji: '😔', label: 'Low' },
-                { emoji: '😫', label: 'Very Low' }
-              ].map((m) => (
-                <button 
-                  key={m.label} 
-                  onClick={() => handleMoodSelect(m.label)}
-                  className="flex flex-col items-center gap-2 group"
-                >
-                  <div className={`w-14 h-14 rounded-full bg-white border flex items-center justify-center text-2xl shadow-sm transition-all group-hover:scale-105 ${
-                    currentLog.mood === m.label ? 'border-primary ring-4 ring-primary/10 scale-110' : 'border-sage-100'
-                  }`}>
-                    {m.emoji}
-                  </div>
-                  <span className={`text-[10px] uppercase tracking-widest font-sans transition-colors ${
-                    currentLog.mood === m.label ? 'text-primary font-bold' : 'text-[#8E8E8A] group-hover:text-primary'
-                  }`}>
-                    {m.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <AnimatePresence>
-            {currentLog.mood && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="pt-8 border-t border-sage-100 overflow-hidden"
-              >
-                <div className="max-w-2xl mx-auto space-y-8">
-                  <div className="text-left">
-                    <p className="text-sm text-[#4A4A4A] italic mb-4">What influenced your mood?</p>
-                    <div className="relative">
-                      <input 
-                        type="text"
-                        placeholder="Add an influence (e.g., Work, Sleep, Friends)..."
-                        className="w-full bg-white border-2 border-sage-100 rounded-2xl py-4 px-6 text-[#1A1A1A] placeholder-[#8E8E8A]/50 focus:border-primary transition-all font-serif text-base shadow-inner"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleInfluenceAdd(e.currentTarget.value);
-                            e.currentTarget.value = '';
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {['Work', 'Friends', 'Weather', 'Exercise', 'Sleep', 'Health', 'Hobbies'].map(suggestion => (
-                        <button
-                          key={suggestion}
-                          onClick={() => handleInfluenceAdd(suggestion)}
-                          className="px-4 py-2 rounded-full bg-white border border-sage-100 text-xs text-[#4A4A4A] hover:border-primary hover:text-primary transition-all shadow-sm"
-                        >
-                          + {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="text-left">
-                    <p className="text-sm text-[#4A4A4A] italic mb-4">Selected Influences</p>
-                    <div className="flex flex-wrap gap-3 min-h-[50px]">
-                      <AnimatePresence mode="popLayout">
-                        {(currentLog.influences || []).map((influence) => (
-                          <motion.div
-                            key={influence}
-                            layout
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
-                            className="flex items-center gap-3 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full text-primary text-sm font-medium shadow-sm"
-                          >
-                            {influence}
-                            <button 
-                              onClick={() => handleInfluenceRemove(influence)}
-                              className="hover:bg-primary/20 rounded-full p-1 transition-colors"
-                            >
-                              <X size={14} />
-                            </button>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                      {(!currentLog.influences || currentLog.influences.length === 0) && (
-                        <p className="text-xs text-[#8E8E8A] uppercase tracking-widest mt-2">No influences added yet</p>
-                      )}
-                    </div>
+                  <div className="flex gap-3 mt-4">
+                    <button onClick={refreshPotentialHabits} className={`p-4 rounded-xl border transition-colors ${isDarkMode ? 'border-neutral-600 text-neutral-400 hover:bg-neutral-700' : 'border-sage-100 text-[#8E8E8A] hover:bg-sage-50'}`}>
+                      <RefreshCw size={20} />
+                    </button>
+                    <button onClick={startHabits} disabled={selectedHabitNames.length === 0} className="flex-1 bg-primary text-white py-4 rounded-xl font-bold text-sm tracking-widest uppercase shadow-lg disabled:opacity-50">
+                      Start {selectedHabitNames.length} {selectedHabitNames.length === 1 ? 'Habit' : 'Habits'}
+                    </button>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </section>
-
-      {/* Habit Tracking */}
-      <section className="mb-10 tour-habits">
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-sage-50">
-          <header className="mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-2">
-                <h2 className="text-2xl text-[#1A1A1A]">Habit Tracking</h2>
-                <div className="size-1.5 bg-primary rounded-full animate-pulse" title="v1.1 Active"></div>
-              </div>
-              <div className="flex items-center gap-2">
-                {currentLog.habits.length > 0 && (
-                  <button 
-                    onClick={() => {
-                      if (confirm('Reset today\'s habits and pick new ones?')) {
-                        onUpdateLog(selectedDate, { habits: [] });
-                        refreshPotentialHabits();
-                      }
-                    }}
-                    className="text-[10px] font-bold text-[#8E8E8A] hover:text-primary uppercase tracking-widest transition-colors mr-2"
-                  >
-                    Reset
-                  </button>
-                )}
-                {currentLog.habits.length > 0 && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-orange-50 rounded-full">
-                    <Flame size={14} className="text-orange-500" />
-                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">{habitStreak} Day Streak</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {currentLog.habits.length > 0 ? (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-2 bg-sage-50 rounded-full overflow-hidden relative">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPercent}%` }}
-                    className={`h-full transition-colors duration-500 ${
-                      progressPercent === 100 ? 'bg-green-500' : 'bg-primary'
-                    }`}
-                  />
-                  {progressPercent === 100 && (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: [0, 1, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                      className="absolute inset-0 bg-white/30"
-                    />
-                  )}
-                </div>
-                <span className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                  progressPercent === 100 ? 'text-green-600' : 'text-[#8E8E8A]'
-                }`}>
-                  {completedHabits}/{totalHabits} {progressPercent === 100 && 'Done!'}
-                </span>
-              </div>
-            ) : (
-              <p className="text-xs text-[#8E8E8A] italic">Pick up to 3 habits to focus on today</p>
-            )}
-          </header>
-
-          {currentLog.habits.length > 0 ? (
-            <div className="space-y-4">
-              {currentLog.habits.map((habit) => (
-                <motion.button 
-                  key={habit.id}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleHabitToggle(habit.id)}
-                  className={`w-full p-4 rounded-2xl border transition-all flex items-center justify-between ${
-                    habit.completed ? 'bg-primary/5 border-primary/20' : 'bg-white border-sage-50 hover:border-sage-100'
-                  }`}
-                >
-                  <span className={`font-medium ${habit.completed ? 'text-primary line-through opacity-60' : 'text-[#4A4A4A]'}`}>
-                    {habit.name}
-                  </span>
-                  <div className={`size-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                    habit.completed ? 'bg-primary border-primary' : 'border-sage-100'
-                  }`}>
-                    {habit.completed && <CheckCircle2 size={14} className="text-white" />}
-                  </div>
-                </motion.button>
-              ))}
-              
-              {progressPercent === 100 && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-6 p-4 bg-green-50 rounded-2xl border border-green-100 text-center"
-                >
-                  <p className="text-sm font-bold text-green-700 flex items-center justify-center gap-2">
-                    <Sparkles size={16} />
-                    Momentum Building!
-                  </p>
-                  <p className="text-[10px] text-green-600 uppercase tracking-widest mt-1">You've mastered today's goals</p>
-                </motion.div>
               )}
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3">
-                {potentialHabits.map((name) => {
-                  const isSelected = selectedHabitNames.includes(name);
-                  return (
-                    <button
-                      key={name}
-                      onClick={() => toggleHabitSelection(name)}
-                      className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                        isSelected ? 'bg-primary/10 border-primary' : 'bg-white border-sage-50 hover:border-sage-100'
-                      }`}
-                    >
-                      <span className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-[#4A4A4A]'}`}>{name}</span>
-                      {isSelected && <CheckCircle2 size={16} className="text-primary" />}
-                    </button>
-                  );
-                })}
+          </section>
+
+          <section className={`rounded-3xl p-6 border relative overflow-hidden ${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white border-sage-50'}`}>
+            <header className="mb-6 flex justify-between items-start">
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Daily reflection</h3>
+              <button 
+                onClick={handleSkip} 
+                className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${currentLog.reflection === 'Skipped for today.' ? 'text-primary' : 'text-[#8E8E8A] hover:text-primary'}`}
+              >
+                {currentLog.reflection === 'Skipped for today.' ? 'Skipped' : 'Skip Today'}
+              </button>
+            </header>
+            
+            <p className={`text-sm italic leading-relaxed mb-4 ${isDarkMode ? 'text-neutral-400' : 'text-[#4A4A4A]'}`}>"{dailyPrompt}"</p>
+            <textarea 
+              className={`w-full h-32 p-4 rounded-xl border transition-colors focus:ring-1 focus:ring-primary resize-none font-serif text-sm ${isDarkMode ? 'bg-neutral-900 border-neutral-700 text-white placeholder-neutral-600' : 'bg-[#FAFAFA] border-[#E5E5E0] text-[#1A1A1A] placeholder-[#8E8E8A]/50'}`}
+              placeholder="Write a few words about your day..."
+              value={reflectionInput}
+              onChange={(e) => handleReflectionChange(e.target.value)}
+            />
+
+            {(currentLog.reflections?.length || (currentLog.reflection && currentLog.reflection !== 'Skipped for today.')) ? (
+              <div className="mt-4 grid grid-cols-1 gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8A]">Earlier entries:</p>
+                {currentLog.reflection && currentLog.reflection !== 'Skipped for today.' && (
+                  <ReflectionCard content={currentLog.reflection} label="Reflection" />
+                )}
+                {currentLog.reflections?.map((ref, idx) => (
+                  <ReflectionCard key={idx} content={ref} label={`Entry ${idx + 1}`} />
+                ))}
               </div>
-              
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={refreshPotentialHabits}
-                  className="p-4 rounded-2xl border border-sage-100 text-[#8E8E8A] hover:bg-sage-50 transition-colors"
-                  title="Refresh habits"
-                >
-                  <RefreshCw size={20} />
-                </button>
-                <button
-                  onClick={startHabits}
-                  disabled={selectedHabitNames.length === 0}
-                  className="flex-1 bg-primary text-white py-4 rounded-2xl font-bold text-sm tracking-widest uppercase shadow-lg shadow-primary/20 disabled:opacity-50 transition-all"
-                >
-                  Start {selectedHabitNames.length} {selectedHabitNames.length === 1 ? 'Habit' : 'Habits'}
-                </button>
-              </div>
-              <p className="text-[10px] text-center text-[#8E8E8A] uppercase tracking-widest mt-2">
-                {selectedHabitNames.length}/3 Selected
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
+            ) : null}
 
-      {/* Daily Reflection */}
-      <section className="mb-10 bg-white rounded-[2.5rem] p-8 shadow-sm border border-sage-50 relative overflow-hidden">
-        <header className="mb-8 flex justify-between items-start">
-          <div>
-            <h2 className="text-2xl text-[#1A1A1A] mb-2">Daily Reflection</h2>
-            <div className="h-0.5 w-12 bg-primary/20"></div>
-          </div>
-          {!currentLog.reflections?.length && !currentLog.reflection && (
-            <button 
-              onClick={handleSkip}
-              className="text-[10px] font-bold text-[#8E8E8A] uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              Skip Today
-            </button>
-          )}
-        </header>
-        
-        <div className="mb-8">
-          <p className="text-lg italic text-[#4A4A4A] leading-relaxed mb-6">
-            "{dailyPrompt}"
-          </p>
-          <textarea 
-            className="w-full h-32 p-0 bg-transparent border-none focus:ring-0 text-[#1A1A1A] placeholder-[#8E8E8A]/50 resize-none font-serif leading-relaxed"
-            placeholder="Write a few words about your day..."
-            value={reflectionInput}
-            onChange={(e) => handleReflectionChange(e.target.value)}
-          />
-        </div>
-
-        {/* Suggestion 3: Compact Journal Cards */}
-        {(currentLog.reflections?.length || (currentLog.reflection && currentLog.reflection !== 'Skipped for today.')) && (
-          <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8A] md:col-span-2">Earlier today:</p>
-            {currentLog.reflection && currentLog.reflection !== 'Skipped for today.' && (
-              <ReflectionCard content={currentLog.reflection} label="Reflection" />
-            )}
-            {currentLog.reflections?.map((ref, idx) => (
-              <ReflectionCard key={idx} content={ref} label={`Entry ${idx + 1}`} />
-            ))}
-          </div>
-        )}
-
-        <div className="flex flex-col gap-8">
-          <div>
-            <p className="text-[10px] font-sans uppercase tracking-[0.2em] text-sage-200 mb-4 text-center">Current Energy</p>
-            <div className="flex justify-between px-2">
+            <div className="mt-8 flex justify-between items-center px-4">
               {[Leaf, Sparkles, Cloud, Coffee, Moon].map((Icon, i) => (
                 <button 
                   key={i} 
                   onClick={() => handleEnergySelect(i)}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                    currentLog.energy === i ? 'bg-sage-50 text-primary ring-1 ring-primary/20' : 'text-sage-200 hover:bg-sage-50 hover:text-primary'
-                  }`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${currentLog.energy === i ? 'bg-primary/10 text-primary ring-1 ring-primary/30' : (isDarkMode ? 'text-neutral-500 hover:text-white' : 'text-sage-200 hover:bg-sage-50 hover:text-primary')}`}
                 >
-                  <Icon size={20} />
+                  <Icon size={18} />
                 </button>
               ))}
             </div>
-          </div>
-          <button 
-            onClick={handleSave}
-            disabled={!reflectionInput.trim() || isSaved}
-            className={`w-full py-5 rounded-2xl text-white font-sans text-sm tracking-widest uppercase shadow-lg transition-all ${
-              isSaved ? 'bg-[#88A47C] shadow-[#88A47C]/20' : 'bg-primary hover:bg-primary/90 shadow-primary/20'
-            } disabled:opacity-50`}
-          >
-            <AnimatePresence mode="wait">
-              {isSaved ? (
-                <motion.span 
-                  key="saved"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex items-center justify-center gap-2"
-                >
-                  🌿 Memory saved
-                </motion.span>
-              ) : (
-                <motion.span
-                  key="save"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  Keep this memory
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </button>
+            
+            <button 
+              onClick={handleSave}
+              className={`mt-6 w-full py-4 rounded-xl text-white font-sans text-xs tracking-widest uppercase shadow-lg transition-all ${
+                isSaved ? 'bg-[#88A47C]' : 'bg-primary hover:bg-primary/90'
+              }`}
+            >
+              <AnimatePresence mode="wait">
+                {isSaved ? (
+                  <motion.span key="saved" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                    🌿 Saved!
+                  </motion.span>
+                ) : (
+                  <motion.span key="save" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                    Save Entry
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </section>
         </div>
-      </section>
-
-      {/* Past Memory Surfacing */}
-      {pastMemory && (
-        <section className="mb-10">
-          <div className="bg-[#1A1A1A] rounded-[2.5rem] p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-6 opacity-10">
-              <History size={80} />
-            </div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-4">Memory Lane</p>
-            <p className="text-xs text-[#8E8E8A] mb-4">
-              {new Date(pastMemory.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
-            <p className="text-xl italic font-serif leading-relaxed mb-6">
-              "{pastMemory.reflections?.[0] || pastMemory.reflection || `You felt ${pastMemory.mood} on this day.`}"
-            </p>
-            <div className="flex items-center gap-2">
-              <Heart size={14} className="text-primary" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#8E8E8A]">A moment worth revisiting</span>
-            </div>
-          </div>
-        </section>
-      )}
-
+      </div>
     </div>
   );
 };
-
 const InfluenceBubbleCloud = ({ influences, onBubbleClick }: { influences: { name: string, count: number }[], onBubbleClick?: (name: string) => void }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1463,10 +1102,328 @@ const InfluenceBubbleCloud = ({ influences, onBubbleClick }: { influences: { nam
   );
 };
 
-const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, DailyLog>, isDarkMode: boolean }) => {
-  const [timePeriod, setTimePeriod] = useState<'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly'>('Weekly');
-  const [periodOffset, setPeriodOffset] = useState(0);
-  const [showPeriodMenu, setShowPeriodMenu] = useState(false);
+const CalendarWidget = ({
+  selectedDate,
+  setSelectedDate,
+  dailyLogs,
+  isDarkMode
+}: {
+  selectedDate: string,
+  setSelectedDate: (d: string) => void,
+  dailyLogs: Record<string, DailyLog>,
+  isDarkMode: boolean
+}) => {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [calendarView, setCalendarView] = useState<'weekly' | 'monthly'>('weekly');
+  const today = formatDateKey(new Date());
+
+  const getWeekDates = () => {
+    const now = new Date();
+    now.setDate(now.getDate() - (weekOffset * 7));
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); 
+    const monday = new Date(now.getFullYear(), now.getMonth(), diff);
+    
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return formatDateKey(d);
+    });
+  };
+
+  const weekDates = getWeekDates();
+  const dayNames = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const monthDayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  const getMonthData = () => {
+    const now = new Date();
+    now.setMonth(now.getMonth() - monthOffset);
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - startDate.getDay()); 
+    
+    const endDate = new Date(lastDay);
+    endDate.setDate(endDate.getDate() + (6 - endDate.getDay())); 
+    
+    const days = [];
+    const curr = new Date(startDate);
+    while (curr <= endDate) {
+      days.push(formatDateKey(curr));
+      curr.setDate(curr.getDate() + 1);
+    }
+    
+    return {
+      days,
+      monthName: now.toLocaleDateString('en-US', { month: 'long' }),
+      year,
+      currentMonth: month
+    };
+  };
+
+  const monthData = getMonthData();
+
+  return (
+    <section className="mb-8">
+      <div className={`rounded-3xl p-6 shadow-sm border ${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-sage-50'}`}>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Calendar</h2>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setCalendarView(calendarView === 'weekly' ? 'monthly' : 'weekly')}
+              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
+                calendarView === 'monthly' ? 'bg-primary/10 text-primary' : (isDarkMode ? 'bg-neutral-700 text-neutral-400 hover:text-primary' : 'bg-sage-50 text-[#8E8E8A] hover:text-primary')
+              }`}
+            >
+              <Calendar size={14} />
+              <span className="text-[9px] font-bold uppercase tracking-widest">
+                {calendarView === 'weekly' ? 'Monthly' : 'Weekly'}
+              </span>
+            </button>
+
+            <button 
+              onClick={() => {
+                setWeekOffset(0);
+                setMonthOffset(0);
+                setSelectedDate(today);
+              }}
+              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-2 ${
+                selectedDate === today ? 'bg-primary/10 text-primary' : (isDarkMode ? 'bg-neutral-700 text-neutral-400 hover:text-primary' : 'bg-sage-50 text-[#8E8E8A] hover:text-primary')
+              }`}
+            >
+              <Clock size={14} />
+              <span className="text-[9px] font-bold uppercase tracking-widest">Today</span>
+            </button>
+          </div>
+        </div>
+
+        <div className={`flex justify-between items-center mb-6 p-2 rounded-2xl ${isDarkMode ? 'bg-neutral-900/50' : 'bg-sage-50/50'}`}>
+          <button 
+            onClick={() => {
+              if (calendarView === 'weekly') setWeekOffset(prev => prev + 1);
+              else setMonthOffset(prev => prev + 1);
+            }}
+            className={`p-1 rounded-full transition-colors shadow-sm ${isDarkMode ? 'bg-neutral-800 text-neutral-500 hover:text-primary' : 'bg-white text-[#8E8E8A] hover:text-primary'}`}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className={`text-[10px] font-sans uppercase tracking-widest font-bold ${isDarkMode ? 'text-neutral-400' : 'text-[#4A4A4A]'}`}>
+            {calendarView === 'weekly' ? (
+              weekOffset === 0 ? 'This Week' : 
+              weekOffset === 1 ? 'Last Week' : 
+              `${weekOffset} Weeks Ago`
+            ) : (
+              `${monthData.monthName} ${monthData.year}`
+            )}
+          </span>
+          <button 
+            onClick={() => {
+              if (calendarView === 'weekly') setWeekOffset(prev => Math.max(0, prev - 1));
+              else setMonthOffset(prev => Math.max(0, prev - 1));
+            }}
+            disabled={calendarView === 'weekly' ? weekOffset === 0 : monthOffset === 0}
+            className={`p-1 rounded-full transition-colors shadow-sm disabled:opacity-20 ${isDarkMode ? 'bg-neutral-800 text-neutral-500 hover:text-primary' : 'bg-white text-[#8E8E8A] hover:text-primary'}`}
+          >
+            <ChevronLeft size={18} className="rotate-180" />
+          </button>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {calendarView === 'weekly' ? (
+            <motion.div 
+              key="weekly"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="flex justify-between"
+            >
+              {weekDates.map((date, i) => {
+                const isSelected = selectedDate === date;
+                const isToday = today === date;
+                const log = dailyLogs[date];
+                const hasMood = !!log?.mood;
+                
+                return (
+                  <button 
+                    key={date}
+                    onClick={() => setSelectedDate(date)}
+                    className="flex flex-col items-center gap-2 group"
+                  >
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? 'text-primary' : (isDarkMode ? 'text-neutral-500' : 'text-sage-300')}`}>
+                      {dayNames[i]}
+                    </span>
+                    <div className={`relative size-10 sm:size-12 rounded-full flex items-center justify-center transition-all ${
+                      isSelected ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-110' : 
+                      isToday ? (isDarkMode ? 'bg-neutral-700 text-white border border-primary/20' : 'bg-sage-50 text-[#4A4A4A] border border-primary/20') : (isDarkMode ? 'text-neutral-400 hover:bg-neutral-700' : 'text-[#8E8E8A] hover:bg-sage-50')
+                    }`}>
+                      <span className="text-xs sm:text-sm font-bold">{new Date(date).getDate()}</span>
+                      {hasMood && !isSelected && (
+                        <div className="absolute -bottom-1 size-1.5 bg-primary rounded-full"></div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="monthly"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <div className="grid grid-cols-7 gap-y-4">
+                {monthDayNames.map(day => (
+                  <div key={day} className="text-center text-[10px] font-bold text-sage-200 uppercase tracking-widest">
+                    {day}
+                  </div>
+                ))}
+                {monthData.days.map((date) => {
+                  const d = new Date(date);
+                  const isSelected = selectedDate === date;
+                  const isToday = today === date;
+                  const isCurrentMonth = d.getMonth() === monthData.currentMonth;
+                  const log = dailyLogs[date];
+                  const hasMood = !!log?.mood;
+
+                  return (
+                    <button 
+                      key={date}
+                      onClick={() => setSelectedDate(date)}
+                      className={`flex flex-col items-center gap-1 group relative py-1 ${!isCurrentMonth ? 'opacity-20' : ''}`}
+                    >
+                      <div className={`size-8 sm:size-10 rounded-full flex items-center justify-center transition-all ${
+                        isSelected ? 'bg-primary text-white shadow-md scale-110' : 
+                        isToday ? (isDarkMode ? 'bg-neutral-700 text-white border border-primary/20' : 'bg-sage-50 text-[#4A4A4A] border border-primary/20') : (isDarkMode ? 'text-neutral-400 hover:bg-neutral-700' : 'text-[#8E8E8A] hover:bg-sage-50')
+                      }`}>
+                        <span className="text-[10px] sm:text-xs font-bold">{d.getDate()}</span>
+                      </div>
+                      {hasMood && !isSelected && (
+                        <div className="size-1 bg-primary rounded-full"></div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+};
+
+const EntryCards = ({ 
+  selectedDate, 
+  dailyLogs, 
+  isDarkMode, 
+  onOpenJournal 
+}: { 
+  selectedDate: string, 
+  dailyLogs: Record<string, DailyLog>, 
+  isDarkMode: boolean,
+  onOpenJournal: () => void 
+}) => {
+  const log = dailyLogs[selectedDate];
+  
+  if (!log || (!log.mood && !log.reflection && !log.reflections?.length && !log.habits.length && !log.influences?.length)) {
+    return (
+      <div className={`mb-8 p-6 text-center rounded-3xl border border-dashed ${isDarkMode ? 'bg-neutral-800/30 border-neutral-700 text-neutral-500' : 'bg-sage-50/50 border-sage-100 text-[#8E8E8A]'}`}>
+        <p className="italic text-sm mb-4">No entries for this date.</p>
+        <button 
+          onClick={onOpenJournal}
+          className="text-xs font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1 justify-center mx-auto"
+        >
+          <Plus size={14} /> Add Entry
+        </button>
+      </div>
+    );
+  }
+
+  const moodEmojis: Record<string, string> = {
+    'Very Happy': '😁',
+    'Happy': '🙂',
+    'Neutral': '😐',
+    'Low': '😔',
+    'Very Low': '😫'
+  };
+
+  const energyIcons = ['🌿', '✨', '☁️', '☕', '🌙'];
+
+  const isToday = selectedDate === new Date().toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+
+  return (
+    <section className="mb-8">
+      <div className="flex justify-between items-center mb-2 px-2">
+        <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
+          {isToday ? 'TODAY' : new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()}
+        </h3>
+      </div>
+      
+      <div className={`p-6 rounded-3xl border ${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white border-sage-50'} relative shadow-sm`}>
+        <div className="space-y-4">
+          {log.mood && (
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{moodEmojis[log.mood] || '😐'}</span>
+              <span className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>{log.mood}</span>
+            </div>
+          )}
+
+          {log.habits.length > 0 && (
+            <div className={`text-sm ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
+              <span className="font-bold">Habits:</span> {log.habits.filter(h => h.completed).length} / {log.habits.length} completed
+            </div>
+          )}
+
+          {log.influences && log.influences.length > 0 && (
+            <div className={`text-sm ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
+              <span className="font-bold">Influences:</span> {log.influences.join(' • ')}
+            </div>
+          )}
+
+          {((log.reflections && log.reflections.length > 0) || (log.reflection && log.reflection !== 'Skipped for today.')) && (
+            <div className={`text-sm italic mt-4 ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
+              <span className="font-bold not-italic block mb-1">Reflection:</span>
+              "{log.reflection && log.reflection !== 'Skipped for today.' ? log.reflection : log.reflections?.[0]}"
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 flex justify-end">
+          <button 
+            onClick={onOpenJournal}
+            className={`text-xs font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1 ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}
+          >
+            <Edit2 size={12} /> Edit
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+
+const InsightsView = ({
+  dailyLogs,
+  isDarkMode,
+  userName,
+  selectedDate,
+  setSelectedDate,
+  onOpenJournal
+}: {
+  dailyLogs: Record<string, DailyLog>,
+  isDarkMode: boolean,
+  userName: string,
+  selectedDate: string,
+  setSelectedDate: (d: string) => void,
+  onOpenJournal: () => void
+}) => {
+  const [timePeriod, setTimePeriod] = useState<'Wkly' | 'Mthly' | 'Qtrly' | 'Yrly'>('Wkly');
   const [selectedInfluenceDetail, setSelectedInfluenceDetail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'Mood' | 'Habits' | 'Influences'>('Mood');
 
@@ -1499,44 +1456,27 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
     'Bad': '😫'
   };
 
-  // Helper to get logs for the current period
+  // Helper to get logs for the current rolling period
   const getLogsForPeriod = () => {
-    const end = new Date();
-    const start = new Date();
+    const today = new Date();
+    const currentYear = today.getFullYear();
     
-    if (timePeriod === 'Weekly') {
-      const now = new Date();
-      now.setDate(now.getDate() - (periodOffset * 7));
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
-      start.setTime(new Date(now.getFullYear(), now.getMonth(), diff).getTime());
-      end.setTime(start.getTime());
-      end.setDate(start.getDate() + 6); // Sunday
-    } else if (timePeriod === 'Monthly') {
-      end.setMonth(end.getMonth() - periodOffset);
-      start.setMonth(end.getMonth());
-      start.setDate(1);
-      end.setDate(new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate());
-    } else if (timePeriod === 'Quarterly') {
-      end.setMonth(end.getMonth() - (periodOffset * 3));
-      const quarter = Math.floor(end.getMonth() / 3);
-      start.setMonth(quarter * 3);
-      start.setDate(1);
-      end.setMonth(start.getMonth() + 2);
-      end.setDate(new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate());
-    } else if (timePeriod === 'Yearly') {
-      end.setFullYear(end.getFullYear() - periodOffset);
-      start.setFullYear(end.getFullYear());
-      start.setMonth(0);
-      start.setDate(1);
-      end.setMonth(11);
-      end.setDate(31);
+    if (timePeriod === 'Wkly') {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 7);
+      return logsArray.filter(log => log.date > formatDateKey(start) && log.date <= formatDateKey(today));
     }
-
-    const startStr = formatDateKey(start);
-    const endStr = formatDateKey(end);
-
-    return logsArray.filter(log => log.date >= startStr && log.date <= endStr);
+    if (timePeriod === 'Mthly') {
+      const start = new Date(currentYear, today.getMonth(), 1);
+      const end = new Date(currentYear, today.getMonth() + 1, 0);
+      return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
+    }
+    
+    // For 90D and 1Y, return the current year's data
+    const start = new Date(currentYear, 0, 1);
+    const end = new Date(currentYear, 11, 31); 
+    
+    return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
   };
 
   const periodLogs = getLogsForPeriod();
@@ -1557,92 +1497,94 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
 
   // 2. Mood Data with Aggregation
   const getMoodData = () => {
-    const points = timePeriod === 'Weekly' ? 7 : timePeriod === 'Monthly' ? 4 : timePeriod === 'Quarterly' ? 3 : 1;
+    const end = new Date();
+    const points: any[] = [];
     
-    return Array.from({ length: points }).map((_, i) => {
-      const date = new Date();
-      if (timePeriod === 'Weekly') date.setDate(date.getDate() - (periodOffset * 7));
-      else if (timePeriod === 'Monthly') date.setMonth(date.getMonth() - periodOffset);
-      else if (timePeriod === 'Quarterly') date.setMonth(date.getMonth() - (periodOffset * 3));
-      else if (timePeriod === 'Yearly') date.setFullYear(date.getFullYear() - periodOffset);
-
-      let label = '';
-      let logsInPoint: DailyLog[] = [];
-
-      if (timePeriod === 'Weekly') {
-        const now = new Date();
-        now.setDate(now.getDate() - (periodOffset * 7));
-        const day = now.getDay();
-        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-        const monday = new Date(now.getFullYear(), now.getMonth(), diff);
-        
-        const targetDate = new Date(monday);
-        targetDate.setDate(monday.getDate() + i);
-
-        const dateStr = formatDateKey(targetDate);
-        logsInPoint = periodLogs.filter(l => l.date === dateStr);
-        // Force array ordering: M, T, W, T, F, S, S
-        const daysOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        label = daysOrder[i];
-      } else if (timePeriod === 'Monthly') {
-        // Each point is a week (7 days)
-        const startDay = i * 7 + 1;
-        const endDay = Math.min((i + 1) * 7, 31);
-        const month = date.getMonth();
-        const year = date.getFullYear();
-        logsInPoint = periodLogs.filter(l => {
-          const d = new Date(l.date);
-          return d.getMonth() === month && d.getFullYear() === year && d.getDate() >= startDay && d.getDate() <= endDay;
+    if (timePeriod === 'Wkly') {
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(end.getDate() - i);
+        const dateStr = formatDateKey(d);
+        const logs = periodLogs.filter(l => l.date === dateStr);
+        points.push({
+          day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+          value: logs.length > 0 ? (moodMap[logs[0].mood || 'Neutral'] || 3) : null,
+          mood: logs.length > 0 ? logs[0].mood : null
         });
-        label = `W${i + 1}`;
-      } else if (timePeriod === 'Quarterly') {
-        // Each point is a month
-        const quarterStartMonth = Math.floor(date.getMonth() / 3) * 3;
-        const targetMonth = quarterStartMonth + i;
-        const year = date.getFullYear();
-        logsInPoint = periodLogs.filter(l => {
-          const d = new Date(l.date);
-          return d.getMonth() === targetMonth && d.getFullYear() === year;
-        });
-        const monthDate = new Date(year, targetMonth, 1);
-        label = monthDate.toLocaleDateString('en-US', { month: 'short' });
-      } else if (timePeriod === 'Yearly') {
-        logsInPoint = periodLogs;
-        label = date.getFullYear().toString();
       }
-
-      const avgValue = logsInPoint.length > 0 
-        ? logsInPoint.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logsInPoint.length 
-        : null;
-
-      return {
-        day: label,
-        value: avgValue,
-        mood: logsInPoint.length === 1 ? logsInPoint[0].mood : null // Only show emoji if single log
-      };
-    });
+    } else if (timePeriod === 'Mthly') {
+      const year = end.getFullYear();
+      const month = end.getMonth();
+      const monthStart = new Date(year, month, 1);
+      
+      for (let i = 0; i < 6; i++) {
+        const weekStart = new Date(monthStart);
+        weekStart.setDate(monthStart.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        if (weekStart.getMonth() > month && weekStart.getFullYear() === year) break;
+        
+        const logs = periodLogs.filter(l => l.date >= formatDateKey(weekStart) && l.date <= formatDateKey(weekEnd));
+        const avg = logs.length > 0 ? logs.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logs.length : null;
+        points.push({
+          day: 'W' + (i + 1),
+          value: avg,
+          mood: null
+        });
+      }
+    } else if (timePeriod === 'Qtrly') {
+      const year = new Date().getFullYear();
+      const quarters = [
+        { label: 'Q1', startOffset: 0, endOffset: 2 },
+        { label: 'Q2', startOffset: 3, endOffset: 5 },
+        { label: 'Q3', startOffset: 6, endOffset: 8 },
+        { label: 'Q4', startOffset: 9, endOffset: 11 },
+      ];
+      
+      quarters.forEach(q => {
+        const qStart = new Date(year, q.startOffset, 1);
+        const qEnd = new Date(year, q.endOffset + 1, 0);
+        
+        const logs = periodLogs.filter(l => l.date >= formatDateKey(qStart) && l.date <= formatDateKey(qEnd));
+        const avg = logs.length > 0 ? logs.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logs.length : null;
+        
+        points.push({
+          day: q.label,
+          value: avg,
+          mood: null
+        });
+      });
+    } else if (timePeriod === 'Yrly') {
+      const year = new Date().getFullYear();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(year, i, 1);
+        const logs = periodLogs.filter(l => {
+          const lDate = new Date(l.date);
+          // Fix for timezone differences in date string formats
+          const [lYear, lMonth] = l.date.split('-');
+          return parseInt(lMonth) - 1 === i && parseInt(lYear) === year;
+        });
+        const avg = logs.length > 0 ? logs.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logs.length : null;
+        points.push({
+          day: d.toLocaleDateString('en-US', { month: 'short' }),
+          value: avg,
+          mood: null
+        });
+      }
+    }
+    
+    return points;
   };
 
   const getPeriodLabel = () => {
-    const date = new Date();
-    if (timePeriod === 'Weekly') {
-      date.setDate(date.getDate() - (periodOffset * 7));
-      const day = date.getDay();
-      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(date.getFullYear(), date.getMonth(), diff);
-      return `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-    } else if (timePeriod === 'Monthly') {
-      date.setMonth(date.getMonth() - periodOffset);
-      return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    } else if (timePeriod === 'Quarterly') {
-      date.setMonth(date.getMonth() - (periodOffset * 3));
-      const quarter = Math.floor(date.getMonth() / 3) + 1;
-      return `Q${quarter} ${date.getFullYear()}`;
-    } else if (timePeriod === 'Yearly') {
-      date.setFullYear(date.getFullYear() - periodOffset);
-      return date.getFullYear().toString();
+    switch (timePeriod) {
+      case 'Wkly': return 'Past 7 Days';
+      case 'Mthly': return 'Past 30 Days';
+      case 'Qtrly': return 'Current Year Quarters';
+      case 'Yrly': return 'Current Year';
+      default: return `Past ${timePeriod}`;
     }
-    return '';
   };
 
   const calculateStreak = (name: string) => {
@@ -1830,87 +1772,59 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
 
   return (
     <div className={`pb-24 animate-in slide-in-from-bottom-4 duration-500 px-6 min-h-screen ${isDarkMode ? 'bg-neutral-900' : 'bg-cream-50'}`}>
-      <header className="py-10 flex justify-between items-start relative">
-        <h2 className={`text-3xl font-bold tracking-tight font-display ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Insights</h2>
-        <div className="flex flex-col items-end gap-3">
-          <div className="relative">
-            <button 
-              onClick={() => setShowPeriodMenu(!showPeriodMenu)}
-              className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700' : 'bg-white border-sage-100 hover:bg-sage-50'} px-4 py-2 rounded-full border shadow-sm flex items-center gap-2 transition-colors`}
-            >
-              <Calendar size={14} className={isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'} />
-              <span className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>{timePeriod}</span>
-              <ChevronDown size={14} className={`${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'} transition-transform ${showPeriodMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            <AnimatePresence>
-              {showPeriodMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-sage-100'} absolute right-0 mt-2 w-32 rounded-2xl border shadow-xl z-50 overflow-hidden`}
-                >
-                  {(['Weekly', 'Monthly', 'Quarterly', 'Yearly'] as const).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => {
-                        setTimePeriod(p);
-                        setPeriodOffset(0);
-                        setShowPeriodMenu(false);
-                      }}
-                      className={`w-full text-left px-4 py-3 text-xs font-bold transition-colors ${
-                        timePeriod === p 
-                          ? (isDarkMode ? 'bg-neutral-700 text-white' : 'bg-sage-50 text-[#1A1A1A]') 
-                          : (isDarkMode ? 'text-neutral-400 hover:bg-neutral-700' : 'text-[#8E8E8A] hover:bg-sage-50/50')
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-sage-100'} flex items-center rounded-full border shadow-sm overflow-hidden`}>
-            <button 
-              onClick={() => setPeriodOffset(prev => prev + 1)}
-              className={`p-2 transition-colors border-r ${isDarkMode ? 'hover:bg-neutral-700 text-neutral-500 border-neutral-700' : 'hover:bg-sage-50 text-[#8E8E8A] border-sage-100'}`}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button 
-              onClick={() => setPeriodOffset(0)}
-              className={`px-3 py-2 text-[10px] font-bold transition-colors uppercase tracking-widest ${isDarkMode ? 'text-white hover:bg-neutral-700' : 'text-[#1A1A1A] hover:bg-sage-50'}`}
-            >
-              Today
-            </button>
-            <button 
-              onClick={() => setPeriodOffset(prev => Math.max(0, prev - 1))}
-              className={`p-2 transition-colors border-l ${isDarkMode ? 'hover:bg-neutral-700 text-neutral-500 border-neutral-700' : 'hover:bg-sage-50 text-[#8E8E8A] border-sage-100'}`}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+      <header className="pt-10 pb-6 flex flex-col justify-start relative">
+        <h2 className={`text-2xl font-bold tracking-tight font-display mb-1 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>
+          Hello, {userName || 'there'} 👋
+        </h2>
+        <p className={`text-sm italic ${isDarkMode ? 'text-neutral-400' : 'text-[#4A4A4A]'}`}>
+          Understand patterns in your mood and habits
+        </p>
       </header>
 
-      {/* Suggestion 2: Tabbed Sub-Navigation */}
-      <div className={`${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white/50 border-sage-100'} flex gap-2 mb-8 p-1 rounded-2xl border w-fit`}>
-        {(['Mood', 'Habits', 'Influences'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-              activeTab === tab 
-                ? (isDarkMode ? 'bg-neutral-700 text-white shadow-sm border border-neutral-600' : 'bg-white text-[#1A1A1A] shadow-sm border border-sage-100') 
-                : (isDarkMode ? 'text-neutral-500 hover:text-white' : 'text-[#8E8E8A] hover:text-[#1A1A1A]')
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <CalendarWidget selectedDate={selectedDate} setSelectedDate={setSelectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} />
+      
+      {/* Visual separation label */}
+      <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 mt-8 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
+        Daily Logging
+      </h3>
+      <EntryCards selectedDate={selectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} onOpenJournal={onOpenJournal} />
+
+      <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 mt-12 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
+        Analyze Trends By
+      </h3>
+      <div className="flex flex-col gap-4 mb-8">
+        <div className={`${isDarkMode ? 'bg-neutral-800/50 border-neutral-700' : 'bg-white/50 border-sage-100'} flex gap-2 p-1 rounded-2xl border w-fit`}>
+          {(['Mood', 'Habits', 'Influences'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
+                activeTab === tab 
+                  ? (isDarkMode ? 'bg-neutral-700 text-white shadow-sm border border-neutral-600' : 'bg-white text-[#1A1A1A] shadow-sm border border-sage-100') 
+                  : (isDarkMode ? 'text-neutral-500 hover:text-white' : 'text-[#8E8E8A] hover:text-[#1A1A1A]')
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Time Period Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2">
+          {(['Wkly', 'Mthly', 'Qtrly', 'Yrly'] as const).map((period) => (
+            <button
+              key={period}
+              onClick={() => setTimePeriod(period)}
+              className={`px-4 py-2 rounded-full text-[10px] font-bold transition-colors ${
+                timePeriod === period
+                  ? (isDarkMode ? 'bg-neutral-700 text-white border border-neutral-600' : 'bg-white text-[#1A1A1A] border border-sage-200 shadow-sm')
+                  : (isDarkMode ? 'text-neutral-500 hover:text-neutral-300' : 'text-[#8E8E8A] hover:text-[#4A4A4A]')
+              }`}
+            >
+              {period}
+            </button>
+          ))}
+        </div>
       </div>
 
       <main className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -1960,10 +1874,10 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
           {/* Mood History (Emojis or Distribution) */}
           <div>
             <h3 className={`text-sm font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>
-              {timePeriod === 'Weekly' ? 'Mood History' : 'Mood Distribution'}
+              {timePeriod === 'Wkly' ? 'Mood History' : 'Mood Distribution'}
             </h3>
             
-            {timePeriod === 'Weekly' ? (
+            {timePeriod === 'Wkly' ? (
               <div className="flex justify-between items-center">
                 {weeklyMood.map((data, i) => (
                   <div key={i} className="flex flex-col items-center gap-2 group relative">
@@ -2058,17 +1972,37 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
         </section>
 
         {/* Patterns Section */}
-        {(correlations.length > 0 || energyPattern) && (
-          <section className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-[#1A1A1A]'} p-8 rounded-[2.5rem] text-white overflow-hidden relative md:col-span-12`}>
-            <div className="absolute -right-20 -top-20 size-64 bg-[#88A47C]/10 rounded-full blur-3xl"></div>
-            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Habit Patterns & Insights</h3>
-            <div className="relative z-10">
+        <section className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-[#1A1A1A]'} p-8 rounded-[2.5rem] text-white overflow-hidden relative md:col-span-12`}>
+          <div className="absolute -right-20 -top-20 size-64 bg-[#88A47C]/10 rounded-full blur-3xl"></div>
+          <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Habit Patterns & Insights</h3>
+          <div className="relative z-10 space-y-4">
+            {correlations.length > 0 ? (
+              correlations.map((c, i) => (
+                <p key={i} className={`text-lg font-serif italic leading-relaxed ${isDarkMode ? 'text-neutral-200' : 'text-white'}`}>
+                  {c.text}
+                </p>
+              ))
+            ) : (
               <p className={`text-lg font-serif italic leading-relaxed ${isDarkMode ? 'text-neutral-200' : 'text-white'}`}>
-                {correlations[0]?.text || energyPattern || summary}
+                {summary || "Build more habits to start seeing patterns in your days."}
               </p>
-            </div>
-          </section>
-        )}
+            )}
+            
+            {energyPattern && (
+              <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-neutral-400' : 'text-white/80'}`}>
+                {energyPattern}
+              </p>
+            )}
+
+            {(activeTab === 'Mood') && (
+              <p className={`text-sm leading-relaxed mt-2 ${isDarkMode ? 'text-neutral-400' : 'text-white/80'}`}>
+                {timePeriod === '7D' 
+                  ? "Daily check-ins reveal your weekly rhythm. Keep logging to sharpen the insights."
+                  : "Trends over longer periods show the bigger picture of your wellbeing."}
+              </p>
+            )}
+          </div>
+        </section>
       </>
     )}
 
@@ -2161,7 +2095,7 @@ const InsightsView = ({ dailyLogs, isDarkMode }: { dailyLogs: Record<string, Dai
   );
 };
 
-const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled, onRestartTour }: { 
+const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled }: { 
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>, 
   onUpdate: (p: UserProfile) => void,
@@ -2169,8 +2103,7 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
   isDarkMode: boolean,
   setIsDarkMode: (v: boolean) => void,
   remindersEnabled: boolean,
-  setRemindersEnabled: (v: boolean) => void,
-  onRestartTour: () => void
+  setRemindersEnabled: (v: boolean) => void
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(profile?.name || '');
@@ -2302,18 +2235,6 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
           </div>
         </button>
         <button 
-          onClick={onRestartTour}
-          className={`w-full ${isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700' : 'bg-white border-sage-50 hover:bg-sage-50'} p-5 rounded-2xl flex items-center justify-between border transition-colors`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`size-10 rounded-xl ${isDarkMode ? 'bg-neutral-700' : 'bg-sage-50'} flex items-center justify-center`}>
-              <Sparkles size={20} className="text-secondary" />
-            </div>
-            <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Replay Tutorial</span>
-          </div>
-          <ChevronRight size={20} className={isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'} />
-        </button>
-        <button 
           onClick={() => setIsDarkMode(!isDarkMode)}
           className={`w-full ${isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700' : 'bg-white border-sage-50 hover:bg-sage-50'} p-5 rounded-2xl flex items-center justify-between border transition-colors`}
         >
@@ -2363,49 +2284,14 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
 
 export default function App() {
   const [view, setView] = useState<ViewType>('welcome');
+  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(formatDateKey(new Date()));
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [dailyLogs, setDailyLogs] = useState<Record<string, DailyLog>>({});
   const [isLoaded, setIsLoaded] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
-  
-  // Joyride State
-  const [runTour, setRunTour] = useState(false);
-  const tourSteps: Step[] = [
-    {
-      target: 'body',
-      placement: 'center',
-      title: 'Welcome to Soluna!',
-      content: "Let's take a quick walk through your new mindful space.",
-      disableBeacon: true,
-    },
-    {
-      target: '.tour-mood',
-      title: 'Daily Check-In',
-      content: 'Start your day by checking in. Tap an emoji to log your current mood.',
-    },
-    {
-      target: '.tour-habits',
-      title: 'Build Consistency',
-      content: 'Track up to 3 daily habits right here. You can click them to mark them complete!',
-    },
-    {
-      target: '.tour-insights-tab',
-      title: 'Discover Patterns',
-      content: 'Over time, Soluna tracks your entries to find patterns. Click here to see your Insights dashboard.',
-    }
-  ];
-
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
-
-    if (finishedStatuses.includes(status)) {
-      setRunTour(false);
-      localStorage.setItem('soluna_tour_complete', 'true');
-    }
-  };
 
   const fetchProfileAndLogs = async (user: UserAccount) => {
     try {
@@ -2451,8 +2337,8 @@ export default function App() {
       if (savedProfile) {
         setProfile(JSON.parse(savedProfile));
       }
-      // Optimistically show journal if we have a saved session
-      setView('journal');
+      // Optimistically show insights if we have a saved session
+      setView('insights');
       fetchProfileAndLogs(user).then(fetchedProfile => {
         if (!fetchedProfile && !savedProfile) {
           // If no profile found, maybe they didn't finish onboarding
@@ -2539,11 +2425,7 @@ export default function App() {
       });
     }
 
-    // Only First time users will not have a soluna_tour_complete flag.
-    if (!localStorage.getItem('soluna_tour_complete')) {
-      setRunTour(true);
-    }
-    setView('journal');
+    setView('insights');
   };
 
   const handleProfileUpdate = async (updatedProfile: UserProfile) => {
@@ -2618,18 +2500,16 @@ export default function App() {
           {view === 'login' && <LogInView onBack={() => setView('welcome')} onLogin={handleLogin} />}
           
           {view === 'onboarding' && <OnboardingView onComplete={handleOnboardingComplete} initialProfile={profile} />}
-          {view === 'journal' && (
-            <JournalView 
-              profile={profile} 
-              dailyLogs={dailyLogs}
-              onUpdateLog={handleUpdateLog}
-              isDarkMode={isDarkMode}
-              setIsDarkMode={setIsDarkMode}
-              isLoaded={isLoaded}
-              currentUser={currentUser}
-            />
-          )}
-          {view === 'insights' && <InsightsView dailyLogs={dailyLogs} isDarkMode={isDarkMode} />}
+          {view === 'insights' && (
+      <InsightsView 
+        dailyLogs={dailyLogs}
+        isDarkMode={isDarkMode}
+        userName={profile?.name}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        onOpenJournal={() => setIsJournalModalOpen(true)}
+      />
+    )}
           {view === 'profile' && (
             <ProfileView 
               profile={profile} 
@@ -2640,13 +2520,31 @@ export default function App() {
               setIsDarkMode={setIsDarkMode}
               remindersEnabled={remindersEnabled}
               setRemindersEnabled={setRemindersEnabled}
-              onRestartTour={() => { setView('journal'); setRunTour(true); }}
             />
           )}
         </motion.div>
       </AnimatePresence>
 
-      {!isAuthView && view !== 'onboarding' && <BottomNav activeView={view} setView={setView} />}
+      <AnimatePresence>
+        {isJournalModalOpen && (
+          <JournalEntryModal
+            selectedDate={selectedDate}
+            profile={profile}
+            dailyLogs={dailyLogs}
+            onUpdateLog={handleUpdateLog}
+            onClose={() => setIsJournalModalOpen(false)}
+            isDarkMode={isDarkMode}
+            setIsDarkMode={setIsDarkMode}
+            isLoaded={isLoaded}
+            currentUser={currentUser}
+          />
+        )}
+      </AnimatePresence>
+
+      {!isAuthView && view !== 'onboarding' && <BottomNav activeView={view} setView={setView} onOpenJournal={() => {
+        setSelectedDate(formatDateKey(new Date()));
+        setIsJournalModalOpen(true);
+      }} />}
     </div>
   );
 }

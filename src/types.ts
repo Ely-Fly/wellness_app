@@ -36,7 +36,7 @@ export interface DailyLog {
   habits: Habit[];
 }
 
-export type ViewType = 'journal' | 'insights' | 'profile' | 'onboarding' | 'welcome' | 'signup' | 'login' | 'dashboard_placeholder';
+export type ViewType = 'insights' | 'profile' | 'onboarding' | 'welcome' | 'signup' | 'login' | 'dashboard_placeholder';
 
 export interface UserAccount {
   id?: string;
