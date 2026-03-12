@@ -412,15 +412,18 @@ const OnboardingView = ({ onComplete, initialProfile }: { onComplete: (profile: 
   const nextStep = () => setStep(s => s + 1);
 
   const handleNameSubmit = (name: string) => {
-    setProfile({ ...profile, name, goal: 'Finding peace in the present moment' }); // Default goal
+    setProfile(prev => ({ ...prev, name, goal: 'Finding peace in the present moment' })); // Default goal
     nextStep();
   };
 
   const handleMoodSelect = (mood: string) => {
-    setProfile({ ...profile, initialMood: mood });
-    // Both returning users and first-time users finish onboarding here now.
-    // Dashboard Joyride will handle exactly when to trigger tutorial.
-    onComplete({ ...profile, initialMood: mood });
+    setProfile(prev => {
+      const updated = { ...prev, initialMood: mood };
+      // Both returning users and first-time users finish onboarding here now.
+      // Dashboard Joyride will handle exactly when to trigger tutorial.
+      onComplete(updated);
+      return updated;
+    });
   };
 
   return (
