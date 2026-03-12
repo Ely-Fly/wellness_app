@@ -118,25 +118,52 @@ const ENTRIES: JournalEntry[] = [
 
 // --- Components ---
 
-const BottomNav = ({ activeView, setView, onOpenJournal }: { activeView: ViewType, setView: (v: ViewType) => void, onOpenJournal: () => void }) => {
+const BottomNav = ({ 
+  activeView, 
+  setView, 
+  onOpenJournal,
+  hasLoggedToday,
+  isDarkMode
+}: { 
+  activeView: ViewType, 
+  setView: (v: ViewType) => void, 
+  onOpenJournal: () => void,
+  hasLoggedToday: boolean,
+  isDarkMode: boolean
+}) => {
   return (
-    <nav className="fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-sage-100 px-8 py-4 rounded-[2rem] flex justify-between items-center z-50 max-w-md mx-auto shadow-lg shadow-sage-100/20">
+    <nav className={`fixed bottom-6 left-6 right-6 ${isDarkMode ? 'bg-neutral-800/90 border-neutral-700' : 'bg-white/90 border-sage-100'} backdrop-blur-xl border px-8 py-4 rounded-[2rem] flex justify-between items-center z-50 max-w-md mx-auto shadow-lg`}>
       <button
         onClick={() => setView('insights')}
         className={`flex flex-col items-center gap-1.5 transition-all w-16 ${
-          activeView === 'insights' ? 'text-primary scale-110' : 'text-[#8E8E8A] hover:text-[#4A4A4A]'
+          activeView === 'insights' ? 'text-primary scale-110' : (isDarkMode ? 'text-neutral-500 hover:text-neutral-300' : 'text-[#8E8E8A] hover:text-[#4A4A4A]')
         }`}
       >
         <Sparkles size={20} strokeWidth={activeView === 'insights' ? 2.5 : 2} />
         <span className="text-[9px] font-bold uppercase tracking-[0.15em]">Insights</span>
       </button>
 
-      <button
-        onClick={onOpenJournal}
-        className="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transform -translate-y-4 hover:scale-105 transition-all border-4 border-cream-50"
-      >
-        <Plus size={24} strokeWidth={2.5} />
-      </button>
+      <div className="relative">
+        {!hasLoggedToday && (
+          <div className={`absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-56 p-3 rounded-2xl shadow-xl z-50 border-2 animate-bounce flex flex-col items-center ${
+            isDarkMode ? 'bg-neutral-800 border-primary shadow-black/50' : 'bg-[#F9FBF9] border-[#2C4C3B] shadow-[#2C4C3B]/10'
+          }`}>
+            <p className={`text-[11px] leading-relaxed text-center ${isDarkMode ? 'text-neutral-200' : 'text-[#1A1A1A]'}`}>
+              <span className={`font-bold mr-1 ${isDarkMode ? 'text-primary' : 'text-[#2C4C3B]'}`}>NEW!</span>
+              Tap the + button in the bottom menu to add a daily log.
+            </p>
+            <div className={`absolute -bottom-[9px] left-1/2 -translate-x-1/2 w-4 h-4 border-b-2 border-r-2 transform rotate-45 ${
+              isDarkMode ? 'bg-neutral-800 border-primary' : 'bg-[#F9FBF9] border-[#2C4C3B]'
+            }`}></div>
+          </div>
+        )}
+        <button
+          onClick={onOpenJournal}
+          className={`w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transform -translate-y-4 hover:scale-105 transition-all border-4 ${isDarkMode ? 'border-neutral-900' : 'border-cream-50'}`}
+        >
+          <Plus size={24} strokeWidth={2.5} />
+        </button>
+      </div>
 
       <button
         onClick={() => setView('profile')}
@@ -1463,20 +1490,32 @@ const InsightsView = ({
     
     if (timePeriod === 'Wkly') {
       const start = new Date(today);
-      start.setDate(today.getDate() - 7);
-      return logsArray.filter(log => log.date > formatDateKey(start) && log.date <= formatDateKey(today));
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff); // Monday
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6); // Sunday
+      return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
     }
     if (timePeriod === 'Mthly') {
       const start = new Date(currentYear, today.getMonth(), 1);
       const end = new Date(currentYear, today.getMonth() + 1, 0);
       return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
     }
+    if (timePeriod === 'Qtrly') {
+      const currentMonth = today.getMonth();
+      const qStartMonth = Math.floor(currentMonth / 3) * 3;
+      const start = new Date(currentYear, qStartMonth, 1);
+      const end = new Date(currentYear, qStartMonth + 3, 0); // last day of quarter
+      return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
+    }
+    if (timePeriod === 'Yrly') {
+      const start = new Date(currentYear, 0, 1);
+      const end = new Date(currentYear, 11, 31); 
+      return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
+    }
     
-    // For 90D and 1Y, return the current year's data
-    const start = new Date(currentYear, 0, 1);
-    const end = new Date(currentYear, 11, 31); 
-    
-    return logsArray.filter(log => log.date >= formatDateKey(start) && log.date <= formatDateKey(end));
+    return logsArray;
   };
 
   const periodLogs = getLogsForPeriod();
@@ -1501,9 +1540,14 @@ const InsightsView = ({
     const points: any[] = [];
     
     if (timePeriod === 'Wkly') {
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(end.getDate() - i);
+      const start = new Date(end);
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff); // Monday
+      
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
         const dateStr = formatDateKey(d);
         const logs = periodLogs.filter(l => l.date === dateStr);
         points.push({
@@ -1516,24 +1560,49 @@ const InsightsView = ({
       const year = end.getFullYear();
       const month = end.getMonth();
       const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
       
-      for (let i = 0; i < 6; i++) {
-        const weekStart = new Date(monthStart);
-        weekStart.setDate(monthStart.getDate() + (i * 7));
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+      let currentWeekStart = new Date(monthStart);
+      let weekNum = 1;
+      
+      while (currentWeekStart.getMonth() === month) {
+        const weekEnd = new Date(currentWeekStart);
+        weekEnd.setDate(currentWeekStart.getDate() + 6);
+        const actualWeekEnd = weekEnd.getMonth() === month ? weekEnd : monthEnd;
         
-        if (weekStart.getMonth() > month && weekStart.getFullYear() === year) break;
+        const logs = periodLogs.filter(l => l.date >= formatDateKey(currentWeekStart) && l.date <= formatDateKey(actualWeekEnd));
+        const avg = logs.length > 0 ? logs.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logs.length : null;
         
-        const logs = periodLogs.filter(l => l.date >= formatDateKey(weekStart) && l.date <= formatDateKey(weekEnd));
+        points.push({
+          day: 'Week ' + weekNum,
+          value: avg,
+          mood: null
+        });
+        
+        currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+        weekNum++;
+      }
+    } else if (timePeriod === 'Qtrly') {
+      const year = end.getFullYear();
+      const currentMonth = end.getMonth();
+      const qStartMonth = Math.floor(currentMonth / 3) * 3;
+      
+      for (let i = 0; i < 3; i++) {
+        const m = qStartMonth + i;
+        const d = new Date(year, m, 1);
+        const logs = periodLogs.filter(l => {
+          const lDate = new Date(l.date);
+          const [lYear, lMonth] = l.date.split('-');
+          return parseInt(lMonth) - 1 === m && parseInt(lYear) === year;
+        });
         const avg = logs.length > 0 ? logs.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logs.length : null;
         points.push({
-          day: 'W' + (i + 1),
+          day: d.toLocaleDateString('en-US', { month: 'short' }),
           value: avg,
           mood: null
         });
       }
-    } else if (timePeriod === 'Qtrly') {
+    } else if (timePeriod === 'Yrly') {
       const year = new Date().getFullYear();
       const quarters = [
         { label: 'Q1', startOffset: 0, endOffset: 2 },
@@ -1555,35 +1624,31 @@ const InsightsView = ({
           mood: null
         });
       });
-    } else if (timePeriod === 'Yrly') {
-      const year = new Date().getFullYear();
-      for (let i = 0; i < 12; i++) {
-        const d = new Date(year, i, 1);
-        const logs = periodLogs.filter(l => {
-          const lDate = new Date(l.date);
-          // Fix for timezone differences in date string formats
-          const [lYear, lMonth] = l.date.split('-');
-          return parseInt(lMonth) - 1 === i && parseInt(lYear) === year;
-        });
-        const avg = logs.length > 0 ? logs.reduce((acc, l) => acc + (moodMap[l.mood || 'Neutral'] || 3), 0) / logs.length : null;
-        points.push({
-          day: d.toLocaleDateString('en-US', { month: 'short' }),
-          value: avg,
-          mood: null
-        });
-      }
     }
     
     return points;
   };
 
   const getPeriodLabel = () => {
+    const today = new Date();
     switch (timePeriod) {
-      case 'Wkly': return 'Past 7 Days';
-      case 'Mthly': return 'Past 30 Days';
-      case 'Qtrly': return 'Current Year Quarters';
-      case 'Yrly': return 'Current Year';
-      default: return `Past ${timePeriod}`;
+      case 'Wkly': {
+        const day = today.getDay();
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(today);
+        monday.setDate(diff);
+        return `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric'})}`;
+      }
+      case 'Mthly': 
+        return today.toLocaleDateString('en-US', { month: 'long' });
+      case 'Qtrly': {
+        const qtr = Math.floor(today.getMonth() / 3) + 1;
+        return `Q${qtr} ${today.getFullYear()}`;
+      }
+      case 'Yrly': 
+        return today.getFullYear().toString();
+      default: 
+        return `Past ${timePeriod}`;
     }
   };
 
@@ -1940,7 +2005,10 @@ const InsightsView = ({
         {/* Habit Tracker Section (Inspired by Image 2) */}
         <section className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-[#E5E5E0]'} p-6 md:p-10 rounded-[2.5rem] border shadow-sm md:col-span-12`}>
           <div className="flex justify-between items-center mb-10 relative">
-            <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Habit Progress</h3>
+            <div>
+              <h3 className={`text-xl font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Habit Progress</h3>
+              <h4 className={`text-sm font-bold ${isDarkMode ? 'text-neutral-400' : 'text-[#8E8E8A]'}`}>{getPeriodLabel()}</h4>
+            </div>
           </div>
 
           <div className="flex flex-col gap-8">
@@ -2008,8 +2076,11 @@ const InsightsView = ({
 
     {activeTab === 'Influences' && (
       <section className={`${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-[#E5E5E0]'} p-6 md:p-8 rounded-[2.5rem] border shadow-sm overflow-hidden md:col-span-12`}>
-        <div className="flex justify-between items-center mb-6">
-          <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Common Influences</h3>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Common Influences</h3>
+            <h4 className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>{getPeriodLabel()}</h4>
+          </div>
           <div className="flex items-center gap-2">
             <div className="size-2 bg-[#88A47C] rounded-full animate-pulse"></div>
             <span className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Top 5 Patterns</span>
@@ -2541,10 +2612,18 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {!isAuthView && view !== 'onboarding' && <BottomNav activeView={view} setView={setView} onOpenJournal={() => {
-        setSelectedDate(formatDateKey(new Date()));
-        setIsJournalModalOpen(true);
-      }} />}
+      {!isAuthView && view !== 'onboarding' && (
+        <BottomNav 
+          activeView={view} 
+          setView={setView} 
+          onOpenJournal={() => {
+            setSelectedDate(formatDateKey(new Date()));
+            setIsJournalModalOpen(true);
+          }} 
+          hasLoggedToday={!!dailyLogs[formatDateKey(new Date())]}
+          isDarkMode={isDarkMode}
+        />
+      )}
     </div>
   );
 }
