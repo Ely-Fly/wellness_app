@@ -1354,28 +1354,44 @@ const EntryCards = ({
   selectedDate, 
   dailyLogs, 
   isDarkMode, 
-  onOpenJournal 
+  onOpenJournal,
+  onUpdateLog
 }: { 
   selectedDate: string, 
   dailyLogs: Record<string, DailyLog>, 
   isDarkMode: boolean,
-  onOpenJournal: () => void 
+  onOpenJournal: () => void,
+  onUpdateLog: (date: string, partialLog: Partial<DailyLog>) => void
 }) => {
   const log = dailyLogs[selectedDate];
   
   if (!log || (!log.mood && !log.reflection && !log.reflections?.length && !log.habits.length && !log.influences?.length)) {
     return (
-      <div className={`mb-8 p-6 text-center rounded-3xl border border-dashed ${isDarkMode ? 'bg-neutral-800/30 border-neutral-700 text-neutral-500' : 'bg-sage-50/50 border-sage-100 text-[#8E8E8A]'}`}>
-        <p className="italic text-sm mb-4">No entries for this date.</p>
-        <button 
-          onClick={onOpenJournal}
-          className="text-xs font-bold text-primary uppercase tracking-widest hover:underline flex items-center gap-1 justify-center mx-auto"
-        >
-          <Plus size={14} /> Add Entry
-        </button>
+      <div 
+        onClick={onOpenJournal}
+        className={`mb-8 py-8 px-6 rounded-3xl border-2 border-dashed cursor-pointer transition-all hover:scale-[1.01] ${isDarkMode ? 'bg-neutral-800/20 border-neutral-700 hover:bg-neutral-800/40 text-neutral-400' : 'bg-sage-50/30 border-sage-100 hover:bg-sage-50/60 text-[#8E8E8A]'}`}
+      >
+        <div className="flex flex-col items-center justify-center opacity-60">
+          <div className="size-12 rounded-full flex items-center justify-center mb-3 border border-dashed border-current">
+            <Plus size={20} />
+          </div>
+          <p className="italic text-sm font-medium text-center">How is your morning going?<br/>Tap + to log.</p>
+        </div>
       </div>
     );
   }
+
+  const getHabitIcon = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('meditat') || lower.includes('breath')) return <Moon size={14} />;
+    if (lower.includes('water') || lower.includes('hydrate')) return <Waves size={14} />;
+    if (lower.includes('sleep') || lower.includes('rest')) return <Cloud size={14} />;
+    if (lower.includes('exercise') || lower.includes('workout') || lower.includes('gym') || lower.includes('walk') || lower.includes('run')) return <Dumbbell size={14} />;
+    if (lower.includes('coffee') || lower.includes('caffeine')) return <Coffee size={14} />;
+    if (lower.includes('sun') || lower.includes('outside')) return <Sun size={14} />;
+    if (lower.includes('read') || lower.includes('book') || lower.includes('learn')) return <Lightbulb size={14} />;
+    return <CheckCircle2 size={14} />;
+  };
 
   const moodEmojis: Record<string, string> = {
     'Very Happy': '😁',
@@ -1407,14 +1423,51 @@ const EntryCards = ({
           )}
 
           {log.habits.length > 0 && (
-            <div className={`text-sm ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
-              <span className="font-bold">Habits:</span> {log.habits.filter(h => h.completed).length} / {log.habits.length} completed
+            <div className="pt-2">
+              <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 block ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Habits</span>
+              <div className="flex flex-wrap gap-2">
+                {log.habits.map((habit, idx) => {
+                  const Icon = getHabitIcon(habit.name);
+                  return (
+                    <motion.button
+                      key={idx}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        const newHabits = log.habits.map(h => h.name === habit.name ? { ...h, completed: !h.completed } : h);
+                        onUpdateLog(selectedDate, { habits: newHabits });
+                      }}
+                      className={`group flex items-center gap-2 px-3 py-2.5 rounded-[1.25rem] transition-all border ${
+                        habit.completed 
+                          ? (isDarkMode ? 'bg-primary/20 border-primary text-primary shadow-sm' : 'bg-primary/5 border-primary text-primary shadow-sm')
+                          : (isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500' : 'bg-white border-sage-100 text-[#8E8E8A] hover:border-[#4A4A4A]')
+                      }`}
+                    >
+                      <div className={`${habit.completed ? 'text-primary' : (isDarkMode ? 'text-neutral-500 group-hover:text-neutral-300' : 'text-[#8E8E8A] group-hover:text-[#4A4A4A]')}`}>
+                        {Icon}
+                      </div>
+                      <span className={`text-xs font-semibold ${habit.completed ? 'text-primary' : (isDarkMode ? 'text-neutral-400 group-hover:text-neutral-200' : 'text-[#4A4A4A]')}`}>
+                        {habit.name}
+                      </span>
+                      <div className={`ml-1 flex items-center justify-center size-[18px] rounded-full border transition-colors ${habit.completed ? 'border-primary bg-primary text-white' : (isDarkMode ? 'border-neutral-600 bg-neutral-800' : 'border-[#8E8E8A] bg-white')}`}>
+                        {habit.completed && <CheckCircle2 size={12} strokeWidth={3} />}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {log.influences && log.influences.length > 0 && (
-            <div className={`text-sm ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
-              <span className="font-bold">Influences:</span> {log.influences.join(' • ')}
+            <div className="pt-2">
+              <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 block ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Influences</span>
+              <div className="flex flex-wrap gap-2">
+                {log.influences.map((inf, idx) => (
+                  <span key={idx} className={`text-[11px] font-bold tracking-wider px-3.5 py-1.5 rounded-full uppercase ${isDarkMode ? 'bg-neutral-800 text-neutral-200 border border-neutral-700 shadow-sm' : 'bg-[#F9FBF9] text-[#2C4C3B] border border-sage-100 shadow-sm'}`}>
+                    {inf}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1446,14 +1499,16 @@ const InsightsView = ({
   userName,
   selectedDate,
   setSelectedDate,
-  onOpenJournal
+  onOpenJournal,
+  onUpdateLog
 }: {
   dailyLogs: Record<string, DailyLog>,
   isDarkMode: boolean,
   userName: string,
   selectedDate: string,
   setSelectedDate: (d: string) => void,
-  onOpenJournal: () => void
+  onOpenJournal: () => void,
+  onUpdateLog: (date: string, partialLog: Partial<DailyLog>) => void
 }) => {
   const [timePeriod, setTimePeriod] = useState<'Wkly' | 'Mthly' | 'Qtrly' | 'Yrly'>('Wkly');
   const [selectedInfluenceDetail, setSelectedInfluenceDetail] = useState<string | null>(null);
@@ -1857,7 +1912,7 @@ const InsightsView = ({
       <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 mt-8 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
         Daily Logging
       </h3>
-      <EntryCards selectedDate={selectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} onOpenJournal={onOpenJournal} />
+      <EntryCards selectedDate={selectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} onOpenJournal={onOpenJournal} onUpdateLog={onUpdateLog} />
 
       <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 mt-12 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
         Analyze Trends By
@@ -2584,6 +2639,7 @@ export default function App() {
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
         onOpenJournal={() => setIsJournalModalOpen(true)}
+        onUpdateLog={handleUpdateLog}
       />
     )}
           {view === 'profile' && (
