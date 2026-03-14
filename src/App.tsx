@@ -1507,6 +1507,102 @@ const EntryCards = ({
 };
 
 
+const DynamicWeeklySummary = ({ 
+  selectedDate, 
+  dailyLogs, 
+  isDarkMode 
+}: { 
+  selectedDate: string, 
+  dailyLogs: Record<string, DailyLog>, 
+  isDarkMode: boolean 
+}) => {
+  const get7DaySummary = () => {
+    const endNode = new Date(selectedDate);
+    const windowLogs: DailyLog[] = [];
+    
+    // Build the 7 day window ending on the selectedDate
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(endNode);
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      if (dailyLogs[dateKey]) {
+        windowLogs.push(dailyLogs[dateKey]);
+      }
+    }
+
+    if (windowLogs.length === 0) return null;
+
+    // Calculate most frequent mood
+    const moodCounts: Record<string, number> = {};
+    windowLogs.forEach(log => {
+      if (log.mood) {
+        moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
+      }
+    });
+
+    let topMood = '';
+    let topMoodCount = 0;
+    Object.entries(moodCounts).forEach(([mood, count]) => {
+      if (count > topMoodCount) {
+        topMoodCount = count;
+        topMood = mood;
+      }
+    });
+
+    // Calculate stellar habits (> 5 completions in the 7 day window)
+    const habitCounts: Record<string, number> = {};
+    windowLogs.forEach(log => {
+      log.habits.forEach(h => {
+        if (h.completed) {
+          habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
+        }
+      });
+    });
+
+    let stellarHabit = '';
+    Object.entries(habitCounts).forEach(([habit, count]) => {
+      if (count >= 5) stellarHabit = habit;
+    });
+
+    if (!topMood && !stellarHabit) return null;
+
+    // Construct the AI-driven snippet string
+    const dateObj = new Date(selectedDate);
+    let dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const isToday = selectedDate === new Date().toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    if (isToday) dateStr = 'today';
+
+    let summaryText = `You were feeling ${topMood || 'Neutral'} ${topMoodCount} out of 7 days leading up to ${dateStr}.`;
+    if (stellarHabit) {
+      summaryText += ` Incredible consistency tracking ${stellarHabit}!`;
+    }
+
+    return summaryText;
+  };
+
+  const summary = get7DaySummary();
+  if (!summary) return null;
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={selectedDate} // Re-animates when selectedDate changes to signal refresh
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -5 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="flex items-start gap-3 w-full mx-auto px-1 mb-6 mt-2"
+      >
+        <Sparkles className="shrink-0 mt-0.5" size={16} color="#708271" strokeWidth={1.5} />
+        <p className="text-sm italic font-semibold text-[#63635E] leading-relaxed">
+          {summary}
+        </p>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+
 const InsightsView = ({
   dailyLogs,
   isDarkMode,
@@ -1922,8 +2018,10 @@ const InsightsView = ({
 
       <CalendarWidget selectedDate={selectedDate} setSelectedDate={setSelectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} />
       
+      <DynamicWeeklySummary selectedDate={selectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} />
+
       {/* Visual separation label */}
-      <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 mt-8 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
+      <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-4 mt-6 ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>
         Daily Logging
       </h3>
       <EntryCards selectedDate={selectedDate} dailyLogs={dailyLogs} isDarkMode={isDarkMode} onOpenJournal={onOpenJournal} onUpdateLog={onUpdateLog} />
