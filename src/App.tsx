@@ -44,7 +44,10 @@ import {
   Target,
   Heart,
   LogOut,
-  Plus
+  Plus,
+  Flower,
+  Droplets,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ViewType, Mood, JournalEntry, UserProfile, DailyLog, Habit, UserAccount } from './types';
@@ -1381,16 +1384,27 @@ const EntryCards = ({
     );
   }
 
-  const getHabitIcon = (name: string) => {
+  const getHabitIcon = (name: string, isCompleted: boolean) => {
     const lower = name.toLowerCase();
-    if (lower.includes('meditat') || lower.includes('breath')) return <Moon size={14} />;
-    if (lower.includes('water') || lower.includes('hydrate')) return <Waves size={14} />;
-    if (lower.includes('sleep') || lower.includes('rest')) return <Cloud size={14} />;
-    if (lower.includes('exercise') || lower.includes('workout') || lower.includes('gym') || lower.includes('walk') || lower.includes('run')) return <Dumbbell size={14} />;
-    if (lower.includes('coffee') || lower.includes('caffeine')) return <Coffee size={14} />;
-    if (lower.includes('sun') || lower.includes('outside')) return <Sun size={14} />;
-    if (lower.includes('read') || lower.includes('book') || lower.includes('learn')) return <Lightbulb size={14} />;
-    return <CheckCircle2 size={14} />;
+    
+    // Base properties requested by the user
+    const strokeWidth = 1.5;
+    const size = 16;
+    
+    // The classes handle the soft gray to sage green transition using Tailwind's duration-300 ease-in-out
+    const colorClass = isCompleted 
+      ? 'text-primary transition-colors duration-300 ease-in-out' 
+      : 'text-neutral-400 transition-colors duration-300 ease-in-out';
+
+    if (lower.includes('meditat') || lower.includes('breath')) return <Flower size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    if (lower.includes('water') || lower.includes('hydrate')) return <Droplets size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    if (lower.includes('move') || lower.includes('activ') || lower.includes('exercise') || lower.includes('workout')) return <Activity size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    if (lower.includes('sleep') || lower.includes('rest')) return <Cloud size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    if (lower.includes('coffee') || lower.includes('caffeine')) return <Coffee size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    if (lower.includes('sun') || lower.includes('outside')) return <Sun size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    if (lower.includes('read') || lower.includes('book') || lower.includes('learn')) return <Lightbulb size={size} strokeWidth={strokeWidth} className={colorClass} />;
+    
+    return <CheckCircle2 size={size} strokeWidth={strokeWidth} className={colorClass} />;
   };
 
   const moodEmojis: Record<string, string> = {
@@ -1427,7 +1441,7 @@ const EntryCards = ({
               <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-3 block ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'}`}>Habits</span>
               <div className="flex flex-wrap gap-2">
                 {log.habits.map((habit, idx) => {
-                  const Icon = getHabitIcon(habit.name);
+                  const Icon = getHabitIcon(habit.name, habit.completed);
                   return (
                     <motion.button
                       key={idx}
@@ -1436,13 +1450,13 @@ const EntryCards = ({
                         const newHabits = log.habits.map(h => h.name === habit.name ? { ...h, completed: !h.completed } : h);
                         onUpdateLog(selectedDate, { habits: newHabits });
                       }}
-                      className={`group flex items-center gap-2 px-3 py-2.5 rounded-[1.25rem] transition-all border ${
+                      className={`group flex items-center gap-2 px-3 py-2.5 rounded-[1.25rem] transition-all duration-300 ease-in-out border ${
                         habit.completed 
-                          ? (isDarkMode ? 'bg-primary/20 border-primary text-primary shadow-sm' : 'bg-primary/5 border-primary text-primary shadow-sm')
-                          : (isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500' : 'bg-white border-sage-100 text-[#8E8E8A] hover:border-[#4A4A4A]')
+                          ? (isDarkMode ? 'bg-primary/20 border-primary shadow-sm' : 'bg-primary/5 border-primary shadow-sm')
+                          : (isDarkMode ? 'bg-neutral-800 border-neutral-700 hover:border-neutral-500' : 'bg-white border-sage-100 hover:border-[#4A4A4A]')
                       }`}
                     >
-                      <div className={`${habit.completed ? 'text-primary' : (isDarkMode ? 'text-neutral-500 group-hover:text-neutral-300' : 'text-[#8E8E8A] group-hover:text-[#4A4A4A]')}`}>
+                      <div className="flex items-center justify-center">
                         {Icon}
                       </div>
                       <span className={`text-xs font-semibold ${habit.completed ? 'text-primary' : (isDarkMode ? 'text-neutral-400 group-hover:text-neutral-200' : 'text-[#4A4A4A]')}`}>
