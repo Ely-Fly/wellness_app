@@ -1204,7 +1204,7 @@ const CalendarWidget = ({
   const monthData = getMonthData();
 
   return (
-    <section className="mb-8">
+    <section className="mb-8 w-full mx-auto">
       <div className={`rounded-3xl p-6 shadow-sm border ${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-sage-50'}`}>
         <div className="flex justify-between items-center mb-6">
           <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Calendar</h2>
@@ -1910,7 +1910,7 @@ const InsightsView = ({
   };
 
   return (
-    <div className={`pb-24 animate-in slide-in-from-bottom-4 duration-500 px-6 min-h-screen ${isDarkMode ? 'bg-neutral-900' : 'bg-cream-50'}`}>
+    <div className={`pb-24 animate-in slide-in-from-bottom-4 duration-500 min-h-screen w-full mx-auto ${isDarkMode ? 'bg-neutral-900' : 'bg-cream-50'}`}>
       <header className="pt-10 pb-6 flex flex-col justify-start relative">
         <h2 className={`text-2xl font-bold tracking-tight font-display mb-1 ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>
           Hello, {userName || 'there'} 👋
