@@ -1538,6 +1538,15 @@ const DynamicWeeklySummary = ({
     }
 
     // Calculate most frequent mood
+    const moodMapLocal: Record<string, number> = {
+      'Very Happy': 5,
+      'Happy': 4,
+      'Neutral': 3,
+      'Low': 2,
+      'Very Low': 1,
+      'Okay': 3
+    };
+
     const moodCounts: Record<string, number> = {};
     windowLogs.forEach(log => {
       if (log.mood) {
@@ -1554,41 +1563,67 @@ const DynamicWeeklySummary = ({
       }
     });
 
-    // Calculate habits
-    const habitCounts: Record<string, number> = {};
-    windowLogs.forEach(log => {
-      log.habits.forEach(h => {
-        if (h.completed) {
-          habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
+    // Insight + Action Logic
+    let bestHabit = '';
+    let highestPercentGain = 0;
+    
+    // Gather unique habits tracked in the window
+    const windowHabits = Array.from(new Set(windowLogs.flatMap(l => l.habits.filter(h => h.completed).map(h => h.name))));
+    
+    windowHabits.forEach(habitName => {
+      const daysWith = windowLogs.filter(l => l.habits.some(h => h.name === habitName && h.completed));
+      const daysWithout = windowLogs.filter(l => !l.habits.some(h => h.name === habitName && h.completed));
+      
+      if (daysWith.length > 0 && daysWithout.length > 0) {
+        const avgWith = daysWith.reduce((sum, l) => sum + (moodMapLocal[l.mood || 'Neutral'] || 3), 0) / daysWith.length;
+        const avgWithout = daysWithout.reduce((sum, l) => sum + (moodMapLocal[l.mood || 'Neutral'] || 3), 0) / daysWithout.length;
+        
+        if (avgWith > avgWithout) {
+          const diff = avgWith - avgWithout;
+          const percentGain = Math.round((diff / avgWithout) * 100);
+          if (percentGain > highestPercentGain) {
+            highestPercentGain = percentGain;
+            bestHabit = habitName;
+          }
         }
-      });
-    });
-
-    let mostTrackedHabit = '';
-    let maxHabitCount = 0;
-    let stellarHabit = '';
-    Object.entries(habitCounts).forEach(([habit, count]) => {
-      if (count > maxHabitCount) {
-        maxHabitCount = count;
-        mostTrackedHabit = habit;
       }
-      if (count >= 5) stellarHabit = habit;
     });
 
-    // Always output a data-driven string if windowLogs > 0
-    const todayStr = formatDateKey(new Date());
-    let dateStr = selectedDate === todayStr ? 'today' : new Date(y, m - 1, d_val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const actionMap: Record<string, string> = {
+      'Drink water': 'grab a glass of water right now',
+      'Morning stretch': 'take 5 minutes to stretch',
+      'Meditation': 'take a moment to breathe deeply',
+      'Read 10 pages': 'pick up your book for a bit',
+      'No sugar': 'keep up the great healthy choices',
+      'Go for a walk': 'step outside for some fresh air',
+      'Journaling': 'jot down a few thoughts',
+      'Deep breathing': 'take a few deep breaths',
+      'Call a friend': 'reach out to someone today',
+      'Tidy up': 'spend a few minutes organizing your space',
+      'Healthy breakfast': 'plan a nourishing meal',
+      'No social media': 'enjoy some unplugged time',
+      'Gratitude list': 'write down one thing you are grateful for',
+      'Cold shower': 'stay energized',
+      'Plan the day': 'jot down your top priorities'
+    };
 
     let summaryText = ``;
     if (topMood) {
-      summaryText += `You were feeling ${topMood} ${topMoodCount} out of 7 days leading up to ${dateStr}.`;
-      if (stellarHabit) {
-        summaryText += ` Incredible consistency tracking ${stellarHabit}!`;
-      }
-    } else if (mostTrackedHabit) {
-      summaryText += `You focused on tracking ${mostTrackedHabit} leading up to ${dateStr}.`;
+      summaryText += `You've been feeling ${topMood} lately.`;
     } else {
-      summaryText += `You took time to reflect leading up to ${dateStr}.`;
+      summaryText += `You've been keeping steady lately.`;
+    }
+
+    if (bestHabit && highestPercentGain > 0) {
+      const action = actionMap[bestHabit] || `try to ${bestHabit.toLowerCase()} today`;
+      summaryText += ` We noticed your mood is usually ${highestPercentGain}% higher on days you ${bestHabit}—maybe ${action}?`;
+    } else if (windowHabits.length > 0) {
+      // Fallback if no mathematical correlation > 0% but habits were tracked
+      const mostTracked = windowHabits[0];
+      const action = actionMap[mostTracked] || `try to ${mostTracked.toLowerCase()} today`;
+      summaryText += ` Staying consistent with habits like ${mostTracked} is a great foundation—maybe ${action}?`;
+    } else {
+      summaryText += ` Taking small steps each day can really boost how you feel—what's one small thing you can do for yourself today?`;
     }
 
     return summaryText.trim();
