@@ -1517,20 +1517,25 @@ const DynamicWeeklySummary = ({
   isDarkMode: boolean 
 }) => {
   const get7DaySummary = () => {
-    const endNode = new Date(selectedDate);
+    // Instantiate exactly at noon local to prevent UTC boundary timezone shifts off-by-one errors
+    const [y, m, d_val] = selectedDate.split('-').map(Number);
+    const endNode = new Date(y, m - 1, d_val, 12, 0, 0);
+    
     const windowLogs: DailyLog[] = [];
     
     // Build the 7 day window ending on the selectedDate
     for (let i = 0; i < 7; i++) {
       const d = new Date(endNode);
       d.setDate(d.getDate() - i);
-      const dateKey = d.toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      const dateKey = formatDateKey(d);
       if (dailyLogs[dateKey]) {
         windowLogs.push(dailyLogs[dateKey]);
       }
     }
 
-    if (windowLogs.length === 0) return null;
+    if (windowLogs.length === 0) {
+      return "Start logging your daily moods and habits to see your weekly patterns here!";
+    }
 
     // Calculate most frequent mood
     const moodCounts: Record<string, number> = {};
@@ -1549,7 +1554,7 @@ const DynamicWeeklySummary = ({
       }
     });
 
-    // Calculate stellar habits (> 5 completions in the 7 day window)
+    // Calculate habits
     const habitCounts: Record<string, number> = {};
     windowLogs.forEach(log => {
       log.habits.forEach(h => {
@@ -1559,25 +1564,34 @@ const DynamicWeeklySummary = ({
       });
     });
 
+    let mostTrackedHabit = '';
+    let maxHabitCount = 0;
     let stellarHabit = '';
     Object.entries(habitCounts).forEach(([habit, count]) => {
+      if (count > maxHabitCount) {
+        maxHabitCount = count;
+        mostTrackedHabit = habit;
+      }
       if (count >= 5) stellarHabit = habit;
     });
 
-    if (!topMood && !stellarHabit) return null;
+    // Always output a data-driven string if windowLogs > 0
+    const todayStr = formatDateKey(new Date());
+    let dateStr = selectedDate === todayStr ? 'today' : new Date(y, m - 1, d_val).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-    // Construct the AI-driven snippet string
-    const dateObj = new Date(selectedDate);
-    let dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const isToday = selectedDate === new Date().toLocaleDateString('en-CA', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-    if (isToday) dateStr = 'today';
-
-    let summaryText = `You were feeling ${topMood || 'Neutral'} ${topMoodCount} out of 7 days leading up to ${dateStr}.`;
-    if (stellarHabit) {
-      summaryText += ` Incredible consistency tracking ${stellarHabit}!`;
+    let summaryText = ``;
+    if (topMood) {
+      summaryText += `You were feeling ${topMood} ${topMoodCount} out of 7 days leading up to ${dateStr}.`;
+      if (stellarHabit) {
+        summaryText += ` Incredible consistency tracking ${stellarHabit}!`;
+      }
+    } else if (mostTrackedHabit) {
+      summaryText += `You focused on tracking ${mostTrackedHabit} leading up to ${dateStr}.`;
+    } else {
+      summaryText += `You took time to reflect leading up to ${dateStr}.`;
     }
 
-    return summaryText;
+    return summaryText.trim();
   };
 
   const summary = get7DaySummary();
