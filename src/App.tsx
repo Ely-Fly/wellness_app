@@ -586,17 +586,7 @@ const JournalEntryModal = ({
   const [isSaved, setIsSaved] = useState(false);
   const [reflectionInput, setReflectionInput] = useState('');
   const [potentialHabits, setPotentialHabits] = useState<string[]>([]);
-  const [selectedHabitNames, setSelectedHabitNames] = useState<string[]>(() => {
-    if (selectedDate !== formatDateKey(new Date())) return [];
-    const saved = localStorage.getItem('soluna_selected_habits');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  useEffect(() => {
-    if (selectedDate === formatDateKey(new Date())) {
-      localStorage.setItem('soluna_selected_habits', JSON.stringify(selectedHabitNames));
-    }
-  }, [selectedHabitNames, selectedDate]);
+  const [selectedHabitNames, setSelectedHabitNames] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isLoaded) return;
