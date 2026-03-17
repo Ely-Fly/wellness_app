@@ -47,7 +47,11 @@ import {
   Plus,
   Flower,
   Droplets,
-  Activity
+  Activity,
+  MonitorSmartphone,
+  PlusSquare,
+  MoreVertical,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ViewType, Mood, JournalEntry, UserProfile, DailyLog, Habit, UserAccount } from './types';
@@ -2377,6 +2381,91 @@ const InsightsView = ({
   );
 };
 
+const PWAInstallGuide = ({ isDarkMode }: { isDarkMode: boolean }) => {
+  const [device, setDevice] = useState<'ios' | 'android' | 'desktop'>('desktop');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    // iOS detection (including iPadOS)
+    if (/ipad|iphone|ipod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+      setDevice('ios');
+    } else if (/android/.test(ua)) {
+      setDevice('android');
+    } else {
+      setDevice('desktop');
+    }
+  }, []);
+
+  const handleUpdate = () => {
+    setIsUpdating(true);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.update();
+      });
+    }
+    setTimeout(() => setIsUpdating(false), 2000);
+  };
+
+  return (
+    <section className={`mb-10 w-full p-6 pb-7 rounded-3xl border shadow-sm ${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-sage-50'}`}>
+      <div className="flex items-center gap-2 text-primary mb-5">
+        <MonitorSmartphone size={20} />
+        <h3 className={`text-[12px] font-bold uppercase tracking-widest font-sans ${isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}`}>Install Soluna App</h3>
+      </div>
+      
+      <div className={`p-4 rounded-2xl mb-5 space-y-4 shadow-inner ${isDarkMode ? 'bg-neutral-900/50' : 'bg-[#FAFAFA]'}`}>
+        {device === 'ios' && (
+          <div className="flex items-start gap-3 animate-in fade-in duration-500">
+            <div className={`mt-0.5 p-2 rounded-xl ${isDarkMode ? 'bg-neutral-800 text-neutral-300' : 'bg-white text-primary shadow-sm'}`}>
+              <Share2 size={16} />
+            </div>
+            <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
+              Tap the <strong className={isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}>Share</strong> icon at the bottom of Safari, then scroll down and select <strong className={isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}>"Add to Home Screen" <PlusSquare size={14} className="inline mb-1" /></strong>.
+            </p>
+          </div>
+        )}
+
+        {device === 'android' && (
+          <div className="flex items-start gap-3 animate-in fade-in duration-500">
+            <div className={`mt-0.5 p-2 rounded-xl border ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-300' : 'bg-white border-sage-50 text-primary shadow-sm'}`}>
+              <MoreVertical size={16} />
+            </div>
+            <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
+              Tap the <strong className={isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}>three dots</strong> in Chrome's top right corner and select <strong className={isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}>"Install App"</strong> or <strong className={isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}>"Add to Home Screen"</strong>.
+            </p>
+          </div>
+        )}
+
+        {device === 'desktop' && (
+          <div className="flex items-start gap-3 animate-in fade-in duration-500">
+            <div className={`mt-0.5 p-2 rounded-xl border ${isDarkMode ? 'bg-neutral-800 border-neutral-700 text-neutral-300' : 'bg-white border-sage-50 text-primary shadow-sm'}`}>
+              <Download size={16} />
+            </div>
+            <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-neutral-300' : 'text-[#4A4A4A]'}`}>
+              Click the <strong className={isDarkMode ? 'text-white' : 'text-[#1A1A1A]'}>Install</strong> icon (computer with an arrow) on the right side of your Chrome/Edge address bar.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <button 
+        onClick={handleUpdate}
+        disabled={isUpdating}
+        className={`w-full py-3.5 rounded-xl flex items-center justify-center gap-2 border transition-all text-sm font-bold tracking-widest uppercase ${
+          isDarkMode 
+            ? 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:bg-neutral-700 disabled:bg-neutral-900 disabled:text-neutral-600' 
+            : 'bg-white border-sage-100 text-primary hover:bg-sage-50 disabled:bg-cream-50 disabled:text-[#8E8E8A]/50 disabled:border-[#E5E5E0]'
+        }`}
+      >
+        <RefreshCw size={16} className={isUpdating ? 'animate-spin' : ''} />
+        {isUpdating ? 'Updating...' : 'Check for Updates'}
+      </button>
+    </section>
+  );
+};
+
+
 const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIsDarkMode, remindersEnabled, setRemindersEnabled }: { 
   profile: UserProfile | null, 
   dailyLogs: Record<string, DailyLog>, 
@@ -2500,6 +2589,8 @@ const ProfileView = ({ profile, dailyLogs, onUpdate, onLogout, isDarkMode, setIs
           <p className={`text-xs ${isDarkMode ? 'text-neutral-500' : 'text-[#8E8E8A]'} mt-1`}>Days in a row</p>
         </div>
       </section>
+
+      <PWAInstallGuide isDarkMode={isDarkMode} />
 
       <section className="space-y-4">
         <button 
