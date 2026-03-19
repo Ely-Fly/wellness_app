@@ -1583,41 +1583,17 @@ const DynamicWeeklySummary = ({
       }
     });
 
-    const actionMap: Record<string, string> = {
-      'Drink water': 'grab a glass of water right now',
-      'Morning stretch': 'take 5 minutes to stretch',
-      'Meditation': 'take a moment to breathe deeply',
-      'Read 10 pages': 'pick up your book for a bit',
-      'No sugar': 'keep up the great healthy choices',
-      'Go for a walk': 'step outside for some fresh air',
-      'Journaling': 'jot down a few thoughts',
-      'Deep breathing': 'take a few deep breaths',
-      'Call a friend': 'reach out to someone today',
-      'Tidy up': 'spend a few minutes organizing your space',
-      'Healthy breakfast': 'plan a nourishing meal',
-      'No social media': 'enjoy some unplugged time',
-      'Gratitude list': 'write down one thing you are grateful for',
-      'Cold shower': 'stay energized',
-      'Plan the day': 'jot down your top priorities'
-    };
-
     let summaryText = ``;
-    if (topMood) {
-      summaryText += `You've been feeling ${topMood} lately.`;
-    } else {
-      summaryText += `You've been keeping steady lately.`;
-    }
-
+    const checkIns = `${windowLogs.length} ${windowLogs.length === 1 ? 'time' : 'times'}`;
+    
     if (bestHabit && highestPercentGain > 0) {
-      const action = actionMap[bestHabit] || `try to ${bestHabit.toLowerCase()} today`;
-      summaryText += ` We noticed your mood is usually ${highestPercentGain}% higher on days you ${bestHabit}—maybe ${action}?`;
+      summaryText = `${topMoodCount > 1 ? `${topMoodCount} days of ${topMood}. ` : ''}Your mood is ${highestPercentGain}% higher when you ${bestHabit}.`;
+    } else if (topMoodCount >= 3) {
+      summaryText = `${topMoodCount} days of ${topMood} this week. It's good to see you tracking.`;
     } else if (windowHabits.length > 0) {
-      // Fallback if no mathematical correlation > 0% but habits were tracked
-      const mostTracked = windowHabits[0];
-      const action = actionMap[mostTracked] || `try to ${mostTracked.toLowerCase()} today`;
-      summaryText += ` Staying consistent with habits like ${mostTracked} is a great foundation—maybe ${action}?`;
+      summaryText = `You've checked in ${checkIns}. You're staying nicely consistent with ${windowHabits[0]}.`;
     } else {
-      summaryText += ` Taking small steps each day can really boost how you feel—what's one small thing you can do for yourself today?`;
+      summaryText = `You've checked in ${checkIns} this week. Take things one gentle step at a time.`;
     }
 
     return summaryText.trim();
